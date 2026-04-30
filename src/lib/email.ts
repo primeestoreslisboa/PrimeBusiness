@@ -346,22 +346,26 @@ export async function sendNovoAgendamentoWhatsAppCallmebot(params: {
   clienteNome: string;
   clienteTelefone: string;
   horarioAgendado: string;
+  morada: string;
+  bairro?: string | null;
   cidade: string;
+  codigoPostal?: string | null;
   descricao: string;
 }) {
-  const { phone, apiKey, chamadoId, clienteNome, clienteTelefone, horarioAgendado, cidade, descricao } = params;
+  const { phone, apiKey, chamadoId, clienteNome, clienteTelefone, horarioAgendado, morada, bairro, cidade, codigoPostal, descricao } = params;
   if (!apiKey) return;
 
   const normalizedPhone = phone.replace(/[^\d]/g, '');
   if (!normalizedPhone) return;
 
   const horarioFmt = formatDateTimePt(horarioAgendado);
+  const local = [morada, bairro, cidade, codigoPostal].filter(Boolean).join(', ');
   const msg =
     `Novo agendamento #${chamadoId}\n` +
     `Cliente: ${clienteNome}\n` +
     `Telefone: ${clienteTelefone}\n` +
     `Horario: ${horarioFmt}\n` +
-    `Cidade: ${cidade}\n` +
+    `Morada: ${local || '-'}\n` +
     `Descricao: ${descricao}`;
 
   const url = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(normalizedPhone)}&text=${encodeURIComponent(msg)}&apikey=${encodeURIComponent(apiKey)}`;

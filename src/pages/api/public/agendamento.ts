@@ -180,7 +180,10 @@ export const POST: APIRoute = async ({ request }) => {
               clienteNome: nome,
               clienteTelefone: telefone,
               horarioAgendado: `${created.horario_agendado}`,
+              morada,
+              bairro,
               cidade,
+              codigoPostal: codigo_postal,
               descricao,
             })
           )
