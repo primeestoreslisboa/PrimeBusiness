@@ -1,5 +1,8 @@
 ---
 import { getTokenFromCookie, verifyToken } from '../lib/auth';
+import '../styles/global.css';
+
+export const prerender = false;
 
 const cookieHeader = Astro.request.headers.get('cookie');
 const token = getTokenFromCookie(cookieHeader);

@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
 import { verifyPassword, createToken } from '../../../lib/auth';
 
+export const prerender = false;
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   return Promise.race([
     promise,
@@ -17,20 +19,12 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
 export const POST: APIRoute = async ({ request }) => {
   try {
     const isHttps = new URL(request.url).protocol === 'https:';
-    const contentType = request.headers.get('content-type') || '';
     let email = '';
     let password = '';
 
-    if (contentType.includes('application/x-www-form-urlencoded')) {
-      const raw = await withTimeout(request.text(), 5000, 'login_body_text');
-      const params = new URLSearchParams(raw);
-      email = (params.get('email') || '').trim();
-      password = params.get('password') || '';
-    } else {
-      const formData = await withTimeout(request.formData(), 5000, 'login_formdata');
-      email = formData.get('email')?.toString().trim() || '';
-      password = formData.get('password')?.toString() || '';
-    }
+    const formData = await withTimeout(request.formData(), 5000, 'login_formdata');
+    email = formData.get('email')?.toString().trim() || '';
+    password = formData.get('password')?.toString() || '';
 
     if (!email || !password) {
       return new Response(null, { status: 303, headers: { Location: '/login?error=invalid' } });
