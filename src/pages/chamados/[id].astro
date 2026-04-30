@@ -1,0 +1,1117 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getDb } from '../../lib/db';
+import { getIvaRate, getPaymentOptions, getSettingBool } from '../../lib/settings';
+
+const user = Astro.locals.user;
+const { id } = Astro.params;
+const sql = getDb();
+
+const [chamado] = await sql`
+  SELECT c.*, u.name as tecnico_nome, u.email as tecnico_email
+  FROM chamados c
+  LEFT JOIN users u ON c.tecnico_id = u.id
+  WHERE c.id = ${id}
+`;
+if (!chamado) return Astro.redirect('/chamados');
+
+const tecnicos = await sql`SELECT id, name FROM users WHERE deleted_at IS NULL ORDER BY name`;
+const orcamentos = await sql`SELECT * FROM orcamentos WHERE chamado_id = ${id} ORDER BY created_at DESC`;
+const chamadoServicos = await sql`
+  SELECT cs.*, s.nome as servico_nome
+  FROM chamado_servicos cs
+  JOIN servicos s ON s.id = cs.servico_id
+  WHERE cs.chamado_id = ${id}
+`;
+
+const statusBadge: Record<string, { cls: string; label: string }> = {
+  pendente: { cls: 'bg-yellow-100 text-yellow-800', label: 'Pendente' },
+  em_andamento: { cls: 'bg-blue-100 text-blue-800', label: 'Em andamento' },
+  concluido: { cls: 'bg-green-100 text-green-800', label: 'Concluido' },
+  cancelado: { cls: 'bg-red-100 text-red-800', label: 'Cancelado' },
+};
+
+const orcStatusMap: Record<string, { cls: string; label: string }> = {
+  pendente: { cls: 'bg-yellow-100 text-yellow-700', label: 'Pendente' },
+  enviado: { cls: 'bg-red-100 text-red-800', label: 'Enviado' },
+  aprovado: { cls: 'bg-green-100 text-green-700', label: 'Aprovado' },
+  concluido: { cls: 'bg-red-100 text-red-700', label: 'Rejeitado' },
+  rejeitado: { cls: 'bg-red-100 text-red-700', label: 'Rejeitado' },
+};
+
+const badge = statusBadge[chamado.status] || { cls: 'bg-gray-100 text-gray-800', label: chamado.status };
+const fmt = (d: string) =>
+  new Date(d).toLocaleString('pt-PT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Lisbon',
+  });
+
+function toDatetimeLocalValue(value: any) {
+  const raw = String(value ?? '').trim();
+  if (raw) {
+    const match = raw.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+    if (match) return `${match[1]}T${match[2]}`;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${day}T${hh}:${mm}`;
+}
+
+const success = Astro.url.searchParams.get('success');
+const error = Astro.url.searchParams.get('error');
+const errorMsg = Astro.url.searchParams.get('msg');
+const openOrc = Astro.url.searchParams.get('orc');
+const isLocked = chamado.status === 'concluido' || chamado.status === 'cancelado';
+const mbwayEnabled = await getSettingBool('mbway_enabled', false);
+const fallbackIvaRate = await getIvaRate(23);
+const paymentOptions = await getPaymentOptions();
+const approvedOrcsForPayment = await sql`
+  SELECT id, total, include_iva, iva_rate
+  FROM orcamentos
+  WHERE chamado_id = ${id} AND status = 'aprovado'
+  ORDER BY COALESCE(aceite_at, created_at) DESC
+`;
+const paymentMethods = [
+  paymentOptions.allowCash ? { value: 'cash', label: 'Numerario' } : null,
+  paymentOptions.allowBankTransfer ? { value: 'bank_transfer', label: 'Transferencia bancaria' } : null,
+  paymentOptions.allowMbwayPhone ? { value: 'mbway', label: `MB WAY${paymentOptions.mbwayPhone ? ` (${paymentOptions.mbwayPhone})` : ''}` } : null,
+  { value: 'other', label: 'Outro' },
+].filter(Boolean);
+const paymentMethodLabelMap: Record<string, string> = {
+  cash: 'Numerario',
+  bank_transfer: 'Transferencia bancaria',
+  mbway: 'MB WAY',
+  other: 'Outro',
+};
+const paymentMethodLabel = chamado.payment_method ? (paymentMethodLabelMap[chamado.payment_method] || chamado.payment_method) : '';
+function calcOrcamentoTotalComIva(o: any) {
+  const baseTotal = Number.parseFloat(String(o?.total ?? '0')) || 0;
+  const parsedIvaRate = Number.parseFloat(String(o?.iva_rate ?? '0'));
+  const ivaRate = o?.include_iva
+    ? (Number.isFinite(parsedIvaRate) && parsedIvaRate > 0 ? Math.min(100, Math.max(0, parsedIvaRate)) : fallbackIvaRate)
+    : 0;
+  return o?.include_iva ? baseTotal * (1 + ivaRate / 100) : baseTotal;
+}
+
+const totalOrcamentosValor = orcamentos.reduce((acc: number, o: any) => acc + calcOrcamentoTotalComIva(o), 0);
+const totalAprovadoValor = orcamentos
+  .filter((o: any) => o?.status === 'aprovado')
+  .reduce((acc: number, o: any) => acc + calcOrcamentoTotalComIva(o), 0);
+const totalPendenteValor = orcamentos
+  .filter((o: any) => o?.status === 'pendente' || o?.status === 'enviado')
+  .reduce((acc: number, o: any) => acc + calcOrcamentoTotalComIva(o), 0);
+const approvedOrcsCount = approvedOrcsForPayment.length;
+const approvedOrcTotalFinal = approvedOrcsForPayment.reduce((acc: number, o: any) => acc + calcOrcamentoTotalComIva(o), 0);
+const approvedOrcIdsText = approvedOrcsForPayment.map((o: any) => `#${o.id}`).join(', ');
+const liveSignature = [
+  `${chamado.status || ''}`,
+  `${chamado.updated_at || ''}`,
+  ...orcamentos.map((o: any) => `${o.id}:${o.status || ''}:${o.aceite_at || ''}:${o.enviado_at || ''}`),
+].join('|');
+
+function getMbWayStatusLabel(status?: string) {
+  if (!status) return { cls: 'bg-gray-100 text-gray-600', label: 'Não iniciado' };
+  if (status === 'pendente') return { cls: 'bg-yellow-100 text-yellow-700', label: 'Pendente' };
+  if (status === 'pago') return { cls: 'bg-green-100 text-green-700', label: 'Pago' };
+  if (status === 'rejeitado') return { cls: 'bg-red-100 text-red-700', label: 'Rejeitado' };
+  return { cls: 'bg-gray-100 text-gray-600', label: status };
+}
+---
+<Layout title={`Chamado #${chamado.id}`} user={user}>
+  <div class="py-6 pb-24">
+    <div class="flex items-center gap-3 mb-4">
+      <a href="/chamados" class="text-gray-400 hover:text-gray-600">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+      </a>
+      <div class="flex-1">
+        <div class="flex items-center gap-2 flex-wrap">
+          <h1 class="text-xl font-bold text-gray-800">{`#${chamado.id} - ${chamado.nome}`}</h1>
+          <span class={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.cls}`}>{badge.label}</span>
+        </div>
+        <p class="text-xs text-gray-400">{fmt(chamado.created_at)}</p>
+      </div>
+    </div>
+
+    {success === 'updated' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">Chamado atualizado.</div>}
+    {success === 'orc_updated' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">Estado do orcamento atualizado.</div>}
+    {success === 'orc_deleted' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">Orcamento eliminado.</div>}
+    {success === 'email_sent' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">Orcamento enviado por email.</div>}
+    {success === 'payment_confirmed' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">Pagamento confirmado com sucesso.</div>}
+    {success === 'payment_canceled' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">Pagamento cancelado com sucesso.</div>}
+    {success === 'mbway_requested' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">Pedido MB WAY enviado para o telemóvel do cliente.</div>}
+    {success === 'mbway_checked' && <div class="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 mb-4 text-sm">Estado MB WAY atualizado.</div>}
+    {success === 'mbway_paid' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">Pagamento MB WAY confirmado.</div>}
+    {error === 'email_failed' && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">Falha ao enviar email.{errorMsg ? ` Erro: ${decodeURIComponent(errorMsg)}` : ' Verifica RESEND_API_KEY e EMAIL_FROM no .env'}</div>}
+    {error === 'no_email' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Este cliente nao tem email registado.</div>}
+    {error === 'no_phone' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Este cliente nao tem telefone registado.</div>}
+    {error === 'mbway_disabled' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">MB WAY está desativado nas configurações.</div>}
+    {error === 'mbway_not_allowed' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Só é possível cobrar MB WAY em orçamentos aprovados.</div>}
+    {error === 'mbway_not_started' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Ainda não existe pedido MB WAY para este orçamento.</div>}
+    {error === 'mbway_failed' && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">Falha na operação MB WAY.{errorMsg ? ` Erro: ${decodeURIComponent(errorMsg)}` : ''}</div>}
+    {error === 'locked' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Este chamado esta concluido ou cancelado e nao pode ser alterado.</div>}
+    {error === 'cancel_reason_required' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Informe o motivo do cancelamento.</div>}
+    {error === 'return_required' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Informe data/hora e descricao para finalizar com retorno.</div>}
+    {error === 'slot_conflict' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Horario comprometido: ja existe outro agendamento que ocupa a janela de 2 horas.</div>}
+    {error === 'payment_only_concluded' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">So e possivel confirmar pagamento em chamados concluidos.</div>}
+    {error === 'payment_method_required' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Selecione a forma de pagamento.</div>}
+    {error === 'no_approved_orcamento' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Nao existe orcamento aceite para confirmar pagamento.</div>}
+    {error === 'payment_not_found' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Nao existe pagamento confirmado para cancelar.</div>}
+    {error === 'forbidden' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Sem permissao para eliminar chamado.</div>}
+    {error === 'orc_locked' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Este orcamento esta finalizado e nao pode ser alterado.</div>}
+    {error === 'server' && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">Erro interno. Tente novamente.</div>}
+    {chamado.status === 'cancelado' && chamado.cancel_reason && (
+      <div class="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3 mb-4 text-sm">
+        <span class="font-semibold">Motivo do cancelamento:</span> {chamado.cancel_reason}
+      </div>
+    )}
+
+    {chamado.status === 'em_andamento' && (
+      <div class="grid grid-cols-3 gap-2 mb-4">
+        <form method="POST" action={`/api/chamados/${id}`} data-confirm="Tem certeza que deseja finalizar este chamado?">
+          <input type="hidden" name="_method" value="PUT" />
+          <input type="hidden" name="quick_status" value="concluido" />
+          <button type="submit" disabled={isLocked} class={`w-full py-2.5 rounded-lg text-sm font-semibold transition ${isLocked ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
+            Finalizar Chamado
+          </button>
+        </form>
+        <form method="POST" action={`/api/chamados/${id}`} onsubmit="return handleReturnSubmit(this)">
+          <input type="hidden" name="_method" value="PUT" />
+          <input type="hidden" name="quick_status" value="concluido_com_retorno" />
+          <input type="hidden" name="retorno_horario_agendado" value="" />
+          <input type="hidden" name="retorno_descricao" value="" />
+          <input type="hidden" name="retorno_allow_conflict" value="0" />
+          <button type="submit" disabled={isLocked} class={`w-full py-2.5 rounded-lg text-sm font-semibold transition ${isLocked ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
+            Finalizar com retorno
+          </button>
+        </form>
+        <form method="POST" action={`/api/chamados/${id}`} onsubmit="return handleCancelSubmit(this)">
+          <input type="hidden" name="_method" value="PUT" />
+          <input type="hidden" name="quick_status" value="cancelado" />
+          <input type="hidden" name="cancel_reason" value="" />
+          <button type="submit" disabled={isLocked} class={`w-full py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 ${isLocked ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-red-50 border border-red-200 text-red-600'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Cancelar
+          </button>
+        </form>
+      </div>
+    )}
+
+    {chamado.status === 'concluido' && (
+      <div class={`rounded-xl p-4 shadow-sm border mb-4 ${chamado.paid_at ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+        <div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="font-semibold text-gray-800">Pagamento</h2>
+              <span class={`text-[11px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide ${chamado.paid_at ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                {chamado.paid_at ? 'Pago' : 'Pendente'}
+              </span>
+            </div>
+            {chamado.paid_at ? (
+              <p class="text-sm text-gray-700 mt-1">
+                Pago em {fmt(chamado.paid_at)} | {paymentMethodLabel || '-'}
+              </p>
+            ) : (
+              <p class="text-sm text-amber-800 mt-1 font-medium">Pagamento ainda nao confirmado.</p>
+            )}
+            <div class="mt-2 rounded-lg bg-white/70 border border-white px-3 py-2">
+              <p class="text-xs text-gray-600">Valor de pagamento</p>
+              <p class={`text-lg font-bold ${chamado.paid_at ? 'text-emerald-700' : 'text-amber-700'}`}>
+                EUR {(Number.parseFloat(String(chamado.payment_amount ?? approvedOrcTotalFinal ?? 0)) || 0).toFixed(2)}
+              </p>
+              {approvedOrcsCount > 0 ? (
+                <p class="text-xs text-gray-600 mt-1">
+                  Orcamentos aprovados: {approvedOrcsCount} | Base de calculo: EUR {approvedOrcTotalFinal.toFixed(2)}
+                </p>
+              ) : (
+                <p class="text-xs text-yellow-700 mt-1">Sem orcamento aceite para base de pagamento.</p>
+              )}
+            </div>
+          </div>
+          <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <form method="POST" action={`/api/chamados/${id}`} onsubmit="return handlePaymentSubmit(this)">
+              <input type="hidden" name="_method" value="PUT" />
+              <input type="hidden" name="quick_status" value="confirmar_pagamento" />
+              <input type="hidden" name="payment_method" value={chamado.payment_method || ''} />
+              <button
+                type="submit"
+                disabled={approvedOrcsCount === 0}
+                class={`w-full sm:w-auto px-3 py-2 rounded-lg text-sm font-semibold transition ${approvedOrcsCount > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+              >
+                {chamado.paid_at ? 'Atualizar Pagamento' : 'Confirmar Pagamento'}
+              </button>
+            </form>
+            {chamado.paid_at && (
+              <form method="POST" action={`/api/chamados/${id}`} data-confirm="Tem certeza que deseja cancelar este pagamento?">
+                <input type="hidden" name="_method" value="PUT" />
+                <input type="hidden" name="quick_status" value="cancelar_pagamento" />
+                <button
+                  type="submit"
+                  class="w-full sm:w-auto px-3 py-2 rounded-lg text-sm font-semibold transition border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                >
+                  Cancelar Pagamento
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    <form method="POST" action={`/api/chamados/${id}`} class="space-y-4" id="edit-chamado-form">
+      <input type="hidden" name="_method" value="PUT" />
+      <input type="hidden" name="allow_conflict" value="0" id="edit-allow-conflict" />
+
+      <details class="bg-white rounded-xl shadow-sm border border-gray-100 group">
+        <summary class="flex items-center justify-between px-4 py-3 cursor-pointer list-none select-none">
+          <h2 class="font-semibold text-gray-700 text-sm uppercase tracking-wide">Dados do Cliente</h2>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </summary>
+        <div class="space-y-3 px-4 pb-4 border-t border-gray-100">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+            <input type="text" name="nome" value={chamado.nome} required disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Telefone *</label>
+              <input type="tel" name="telefone" value={chamado.telefone} required disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" name="email" value={chamado.email || ''} disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Codigo Postal</label>
+            <input id="codigo-postal-input" type="text" name="codigo_postal" value={chamado.codigo_postal || ''} disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Morada *</label>
+            <input id="morada-input" type="text" name="morada" value={chamado.morada} required disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Bairro</label>
+              <input id="bairro-input" type="text" name="bairro" value={chamado.bairro || ''} disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Cidade *</label>
+              <input id="cidade-input" type="text" name="cidade" value={chamado.cidade} required disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500" />
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="bg-white rounded-xl shadow-sm border border-gray-100 group">
+        <summary class="flex items-center justify-between px-4 py-3 cursor-pointer list-none select-none">
+          <h2 class="font-semibold text-gray-700 text-sm uppercase tracking-wide">Servico</h2>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </summary>
+        <div class="space-y-3 px-4 pb-4 border-t border-gray-100">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Descricao *</label>
+            <textarea name="descricao" required rows="3" disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none resize-none disabled:bg-gray-100 disabled:text-gray-500">{chamado.descricao}</textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Horario Agendado *</label>
+            <input type="datetime-local" name="horario_agendado" required id="edit-horario-input" value={toDatetimeLocalValue(chamado.horario_agendado)} disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500" />
+            <p id="edit-horario-warning" class="hidden mt-2 text-xs text-amber-700">Horario comprometido por outro agendamento (janela de 2h).</p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Status atual</label>
+              <div class="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-700">
+                {chamado.status === 'pendente' ? 'Pendente' : chamado.status === 'em_andamento' ? 'Em andamento' : chamado.status === 'concluido' ? 'Concluido' : 'Cancelado'}
+              </div>
+              <input type="hidden" name="status" value={chamado.status} />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Tecnico</label>
+              <select name="tecnico_id" disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none bg-white disabled:bg-gray-100 disabled:text-gray-500">
+                <option value="">Nao atribuido</option>
+                {tecnicos.map((t: any) => (
+                  <option value={t.id} selected={t.id === chamado.tecnico_id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      {!isLocked && (
+        <button type="submit" class="w-full font-semibold py-3 rounded-xl transition bg-green-600 hover:bg-green-700 text-white">Guardar Alteracoes</button>
+      )}
+    </form>
+
+    {!isLocked && user.role === 'admin' && (
+      <form method="POST" action={`/api/chamados/${id}`} data-confirm="Eliminar este chamado permanentemente?">
+        <input type="hidden" name="_method" value="DELETE" />
+        <button type="submit" class="w-full mt-2 bg-white hover:bg-red-50 border border-red-200 text-red-600 font-medium py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Eliminar Chamado
+        </button>
+      </form>
+    )}
+
+    <div class="mt-4 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <h2 class="font-semibold text-gray-700 text-sm uppercase tracking-wide flex items-center gap-2">
+          Orcamentos
+          {orcamentos.length > 0 && <span class="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full font-medium">{orcamentos.length}</span>}
+        </h2>
+        {!isLocked && (
+          <a href={`/tecnico/${chamado.id}?new=1`} class="text-xs text-green-600 font-medium hover:underline">+ Novo</a>
+        )}
+      </div>
+
+      {orcamentos.length === 0 ? (
+        <div class="px-4 py-8 text-center text-gray-400">
+          <p class="text-sm">Nenhum orcamento gerado ainda</p>
+          {!isLocked && (
+            <a href={`/tecnico/${chamado.id}?new=1`} class="mt-2 inline-block text-green-600 text-sm">Ir para a pagina do tecnico</a>
+          )}
+        </div>
+      ) : (
+        <div class="divide-y divide-gray-100">
+          {orcamentos.map((o: any) => {
+            const orcIvaRate = Number.parseFloat(String(o.iva_rate ?? '0')) || fallbackIvaRate;
+            const orcBaseTotal = Number.parseFloat(String(o.total ?? '0')) || 0;
+            const orcIvaValue = o.include_iva ? orcBaseTotal * (orcIvaRate / 100) : 0;
+            const orcTotalFinal = orcBaseTotal + orcIvaValue;
+            const ob = orcStatusMap[o.status] || { cls: 'bg-gray-100 text-gray-600', label: o.status };
+            const isOpen = String(o.id) === openOrc;
+            const isOrcLocked = o.status === 'aprovado' || o.status === 'concluido' || o.status === 'rejeitado';
+            const canResendOrc = !isLocked && o.status !== 'concluido' && o.status !== 'rejeitado';
+            const canEditOrc = !isLocked && o.status !== 'concluido' && o.status !== 'rejeitado';
+            const mb = getMbWayStatusLabel(o.mbway_status);
+            const canChargeMbWay = mbwayEnabled && !isLocked && o.status === 'aprovado' && !!chamado.telefone && o.mbway_status !== 'pago';
+            const servicosDoOrcamento = chamadoServicos.filter((it: any) => String(it.orcamento_id) === String(o.id));
+            return (
+              <details open={isOpen} class="group" id={`orc-${o.id}`}>
+                <summary class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 list-none select-none">
+                  <div>
+                    <p class="font-semibold text-gray-800">Orcamento #{o.id} - EUR {orcTotalFinal.toFixed(2)}</p>
+                    <p class="text-xs text-gray-400">
+                      {fmt(o.created_at)}
+                      {o.enviado_at ? ` | enviado ${fmt(o.enviado_at)}` : ''}
+                      {o.include_iva ? ` | com IVA (${orcIvaRate.toFixed(2)}%)` : ' | sem IVA'}
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class={`text-xs px-2 py-0.5 rounded-full font-medium ${ob.cls}`}>{ob.label}</span>
+                    {o.enviado_via && <span class="text-xs text-gray-400">via {o.enviado_via}</span>}
+                    {canEditOrc && (
+                      <a
+                        href={`/tecnico/${chamado.id}?orc=${o.id}`}
+                        class="w-8 h-8 rounded-lg border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition flex items-center justify-center"
+                        title="Editar orçamento"
+                        onclick="event.stopPropagation()"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M16.5 3.5a2.121 2.121 0 013 3L12 14l-4 1 1-4 7.5-7.5z" />
+                        </svg>
+                      </a>
+                    )}
+                    {canResendOrc && (
+                      <form id={`resend-email-form-${o.id}`} method="POST" action={`/api/orcamento/${chamado.id}`}>
+                        <input type="hidden" name="action" value="resend_email" />
+                        <input type="hidden" name="orc_id" value={o.id} />
+                        <input type="hidden" name="to_email" value={chamado.email || ''} />
+                        <button
+                          type="button"
+                          class={`js-resend-email w-8 h-8 rounded-lg border transition flex items-center justify-center ${chamado.email ? 'border-red-200 bg-red-50 text-red-800 hover:bg-red-100' : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                          title={chamado.email ? 'Reenviar email' : 'Sem email'}
+                          data-form-id={`resend-email-form-${o.id}`}
+                          data-current-email={chamado.email || ''}
+                          data-enabled={chamado.email ? '1' : '0'}
+                          onclick="event.stopPropagation()"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </form>
+                    )}
+                    {canResendOrc && (
+                      <form id={`resend-wa-form-${o.id}`} method="POST" action={`/api/orcamento/${chamado.id}`}>
+                        <input type="hidden" name="action" value="resend_whatsapp" />
+                        <input type="hidden" name="orc_id" value={o.id} />
+                        <input type="hidden" name="to_phone" value={chamado.telefone || ''} />
+                        <button
+                          type="button"
+                          class={`js-resend-whatsapp w-8 h-8 rounded-lg border transition flex items-center justify-center ${chamado.telefone ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                          title={chamado.telefone ? 'Reenviar WhatsApp' : 'Sem telefone'}
+                          data-form-id={`resend-wa-form-${o.id}`}
+                          data-current-phone={chamado.telefone || ''}
+                          data-enabled={chamado.telefone ? '1' : '0'}
+                          onclick="event.stopPropagation()"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.52 3.48A11.94 11.94 0 0012.06 0C5.6 0 .34 5.26.34 11.72c0 2.06.54 4.08 1.57 5.86L0 24l6.61-1.73a11.7 11.7 0 005.45 1.39h.01c6.46 0 11.72-5.26 11.72-11.72 0-3.13-1.22-6.07-3.27-8.46zM12.07 21.3h-.01a9.62 9.62 0 01-4.89-1.34l-.35-.21-3.92 1.03 1.05-3.82-.23-.39a9.6 9.6 0 01-1.47-5.12C2.25 6.2 6.54 1.91 11.83 1.91c2.57 0 4.99 1 6.8 2.82a9.55 9.55 0 012.82 6.8c0 5.29-4.29 9.58-9.38 9.58zm5.25-7.17c-.29-.14-1.71-.84-1.97-.94-.26-.1-.45-.14-.64.15-.19.29-.74.94-.91 1.13-.17.19-.34.22-.63.07-.29-.14-1.21-.45-2.31-1.43-.86-.76-1.44-1.7-1.61-1.99-.17-.29-.02-.45.12-.59.13-.13.29-.34.43-.51.14-.17.19-.29.29-.49.1-.19.05-.36-.02-.51-.07-.14-.64-1.54-.88-2.11-.23-.55-.47-.48-.64-.49h-.55c-.19 0-.49.07-.75.36-.26.29-.98.96-.98 2.33 0 1.37 1 2.69 1.14 2.88.14.19 1.97 3.01 4.77 4.22.67.29 1.19.46 1.6.59.67.21 1.28.18 1.76.11.54-.08 1.71-.7 1.95-1.37.24-.67.24-1.25.17-1.37-.07-.12-.26-.19-.55-.34z" />
+                          </svg>
+                        </button>
+                      </form>
+                    )}
+                    {!isOrcLocked && (
+                      <form method="POST" action={`/api/orcamento/${chamado.id}`} onsubmit="event.stopPropagation()" data-confirm="Eliminar este orcamento?" data-confirm-stop-propagation="1">
+                        <input type="hidden" name="action" value="delete_orcamento" />
+                        <input type="hidden" name="orc_id" value={o.id} />
+                        <button
+                          type="submit"
+                          class="w-8 h-8 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition flex items-center justify-center"
+                          title="Eliminar orçamento"
+                          onclick="event.stopPropagation()"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </form>
+                    )}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400 group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </summary>
+
+                <div class="px-4 pb-4 bg-gray-50 border-t border-gray-100 space-y-3">
+                  {servicosDoOrcamento.length > 0 && (
+                    <table class="w-full text-sm mt-3">
+                      <thead>
+                        <tr class="text-xs text-gray-400 border-b border-gray-200">
+                          <th class="text-left pb-1 font-medium">Servico</th>
+                          <th class="text-center pb-1 font-medium">Qtd</th>
+                          <th class="text-right pb-1 font-medium">Unit.</th>
+                          <th class="text-right pb-1 font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {servicosDoOrcamento.map((it: any) => (
+                          <tr class="border-b border-gray-100">
+                            <td class="py-1.5 text-gray-700">
+                              <div>{it.servico_nome}</div>
+                              {it.observacao && <div class="text-xs text-gray-400 mt-0.5">{it.observacao}</div>}
+                            </td>
+                            <td class="py-1.5 text-center text-gray-500">{it.quantidade}</td>
+                            <td class="py-1.5 text-right text-gray-500">EUR {parseFloat(it.preco_unitario).toFixed(2)}</td>
+                            <td class="py-1.5 text-right font-medium text-gray-700">EUR {(it.quantidade * parseFloat(it.preco_unitario)).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        {o.include_iva ? (
+                          <>
+                            <tr>
+                              <td colspan="3" class="pt-2 text-right font-bold text-gray-500 text-xs uppercase">Subtotal</td>
+                              <td class="pt-2 text-right font-medium text-gray-700">EUR {orcBaseTotal.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                              <td colspan="3" class="pt-1 text-right font-bold text-gray-500 text-xs uppercase">IVA ({orcIvaRate.toFixed(2)}%)</td>
+                              <td class="pt-1 text-right font-medium text-gray-700">EUR {orcIvaValue.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                              <td colspan="3" class="pt-2 text-right font-bold text-gray-500 text-xs uppercase">Total</td>
+                              <td class="pt-2 text-right font-bold text-red-700">EUR {orcTotalFinal.toFixed(2)}</td>
+                            </tr>
+                          </>
+                        ) : (
+                          <tr>
+                            <td colspan="3" class="pt-2 text-right font-bold text-gray-500 text-xs uppercase">Total</td>
+                            <td class="pt-2 text-right font-bold text-red-700">EUR {orcTotalFinal.toFixed(2)}</td>
+                          </tr>
+                        )}
+                      </tfoot>
+                    </table>
+                  )}
+
+                  {mbwayEnabled && (
+                    <div class="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-700">MB WAY</span>
+                        <span class={`text-xs px-2 py-0.5 rounded-full font-medium ${mb.cls}`}>{mb.label}</span>
+                      </div>
+                      {o.mbway_request_id && (
+                        <p class="text-xs text-gray-400 mt-1">Pedido: {o.mbway_request_id}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {mbwayEnabled && !isLocked && o.status === 'aprovado' && (
+                    <div class="grid grid-cols-2 gap-2">
+                      <form method="POST" action={`/api/orcamento/${chamado.id}`}>
+                        <input type="hidden" name="action" value="charge_mbway" />
+                        <input type="hidden" name="orc_id" value={o.id} />
+                        <button type="submit" disabled={!canChargeMbWay} class={`w-full py-2 rounded-lg text-sm font-medium transition ${canChargeMbWay ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+                          {o.mbway_status === 'pago' ? 'Pago' : 'Cobrar MB WAY'}
+                        </button>
+                      </form>
+                      <form method="POST" action={`/api/orcamento/${chamado.id}`}>
+                        <input type="hidden" name="action" value="check_mbway_status" />
+                        <input type="hidden" name="orc_id" value={o.id} />
+                        <button type="submit" disabled={!o.mbway_request_id} class={`w-full py-2 rounded-lg text-sm font-medium transition ${o.mbway_request_id ? 'bg-green-100 hover:bg-green-200 text-green-700' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+                          Atualizar Estado
+                        </button>
+                      </form>
+                    </div>
+                  )}
+                </div>
+              </details>
+            );
+          })}
+          <div class="px-4 py-3 bg-gray-50 border-t border-gray-100">
+            <div class="flex flex-wrap items-center gap-3 text-xs font-semibold">
+              <p class="text-gray-600">Total: <span class="text-red-700">EUR {totalOrcamentosValor.toFixed(2)}</span></p>
+              <p class="text-emerald-700">Aprovado: EUR {totalAprovadoValor.toFixed(2)}</p>
+              <p class="text-amber-700">Pendente: EUR {totalPendenteValor.toFixed(2)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+</Layout>
+
+<div id="live-signature" data-signature={liveSignature} data-chamado-id={id} hidden></div>
+
+<div id="postal-loading-overlay" class="fixed inset-0 bg-black/30 backdrop-blur-[1px] z-50 hidden items-center justify-center">
+  <div class="bg-white rounded-xl px-4 py-3 shadow text-sm font-medium text-gray-700">A validar codigo postal...</div>
+</div>
+
+<div id="cancel-modal" class="fixed inset-0 z-[70] hidden" aria-hidden="true">
+  <button id="cancel-modal-backdrop" type="button" class="absolute inset-0 bg-black/40"></button>
+  <div class="absolute inset-0 flex items-end sm:items-center sm:justify-center p-0 sm:p-4">
+    <div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-4 sm:p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-gray-800">Cancelar Chamado</h3>
+        <button id="cancel-modal-close" type="button" class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">✕</button>
+      </div>
+      <p class="text-sm text-gray-600 mb-3">Informe o motivo do cancelamento.</p>
+      <textarea
+        id="cancel-reason-input"
+        rows="4"
+        placeholder="Escreva o motivo..."
+        class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none resize-none"
+      ></textarea>
+      <p id="cancel-reason-error" class="hidden text-xs text-red-600 mt-2">O motivo do cancelamento e obrigatorio.</p>
+      <div class="mt-4 grid grid-cols-2 gap-2">
+        <button id="cancel-modal-back" type="button" class="w-full py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+          Voltar
+        </button>
+        <button id="cancel-modal-confirm" type="button" class="w-full py-2.5 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-700 text-white transition">
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="return-modal" class="fixed inset-0 z-[75] hidden" aria-hidden="true">
+  <button id="return-modal-backdrop" type="button" class="absolute inset-0 bg-black/40"></button>
+  <div class="absolute inset-0 flex items-end sm:items-center sm:justify-center p-0 sm:p-4">
+    <div class="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-4 sm:p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-gray-800">Finalizar com Retorno</h3>
+        <button id="return-modal-close" type="button" class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">x</button>
+      </div>
+      <p class="text-sm text-gray-600 mb-3">Defina data/hora e descricao do proximo atendimento.</p>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Data e hora *</label>
+          <input
+            id="return-datetime-input"
+            type="datetime-local"
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Descricao do retorno *</label>
+          <textarea
+            id="return-description-input"
+            rows="4"
+            placeholder="Descreva o que precisa ser feito no retorno..."
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none resize-none"
+          ></textarea>
+        </div>
+      </div>
+      <p id="return-modal-error" class="hidden text-xs text-red-600 mt-2">Preencha data/hora e descricao.</p>
+      <div class="mt-4 grid grid-cols-2 gap-2">
+        <button id="return-modal-back" type="button" class="w-full py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+          Voltar
+        </button>
+        <button id="return-modal-confirm" type="button" class="w-full py-2.5 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition">
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="payment-modal" class="fixed inset-0 z-[76] hidden" aria-hidden="true">
+  <button id="payment-modal-backdrop" type="button" class="absolute inset-0 bg-black/40"></button>
+  <div class="absolute inset-0 flex items-end sm:items-center sm:justify-center p-0 sm:p-4">
+    <div class="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-4 sm:p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-gray-800">Confirmar Pagamento</h3>
+        <button id="payment-modal-close" type="button" class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">x</button>
+      </div>
+      <div class="space-y-3">
+        <div class="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
+          <p class="text-xs text-gray-500">Valor baseado nos orcamentos aprovados</p>
+          <p class="text-lg font-semibold text-gray-800">EUR {approvedOrcTotalFinal.toFixed(2)}</p>
+          {approvedOrcsCount > 0 && (
+            <p class="text-xs text-gray-500 mt-1">IDs considerados: {approvedOrcIdsText}</p>
+          )}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento *</label>
+          <select
+            id="payment-method-select"
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-transparent outline-none bg-white"
+          >
+            <option value="">Selecionar...</option>
+            {paymentMethods.map((method: any) => (
+              <option value={method.value} selected={chamado.payment_method === method.value}>{method.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p id="payment-modal-error" class="hidden text-xs text-red-600 mt-2">Selecione a forma de pagamento.</p>
+      <div class="mt-4 grid grid-cols-2 gap-2">
+        <button id="payment-modal-back" type="button" class="w-full py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+          Voltar
+        </button>
+        <button id="payment-modal-confirm" type="button" class="w-full py-2.5 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition">
+          Confirmar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="conflict-modal" class="fixed inset-0 z-[77] hidden" aria-hidden="true">
+  <button id="conflict-modal-backdrop" type="button" class="absolute inset-0 bg-black/40"></button>
+  <div class="absolute inset-0 flex items-end sm:items-center sm:justify-center p-0 sm:p-4">
+    <div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-4 sm:p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-gray-800">Conflito de Horario</h3>
+        <button id="conflict-modal-close" type="button" class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">x</button>
+      </div>
+      <p id="conflict-modal-message" class="text-sm text-gray-600 mb-3">Este horario está comprometido.</p>
+      <div class="mt-4 grid grid-cols-2 gap-2">
+        <button id="conflict-modal-back" type="button" class="w-full py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+          Voltar
+        </button>
+        <button id="conflict-modal-confirm" type="button" class="w-full py-2.5 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white transition">
+          Agendar mesmo assim
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const postalInput = document.getElementById('codigo-postal-input');
+  const moradaInput = document.getElementById('morada-input');
+  const bairroInput = document.getElementById('bairro-input');
+  const cidadeInput = document.getElementById('cidade-input');
+  const overlay = document.getElementById('postal-loading-overlay');
+  const editForm = document.getElementById('edit-chamado-form') as HTMLFormElement | null;
+  const editHorarioInput = document.getElementById('edit-horario-input') as HTMLInputElement | null;
+  const editAllowConflict = document.getElementById('edit-allow-conflict') as HTMLInputElement | null;
+  const editHorarioWarning = document.getElementById('edit-horario-warning') as HTMLParagraphElement | null;
+
+  function lockScreen(lock) {
+    if (!overlay) return;
+    if (lock) {
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+      document.body.style.overflow = 'hidden';
+    } else {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      document.body.style.overflow = '';
+    }
+  }
+
+  function normalizePostalCode(value) {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length < 7) return null;
+    return `${digits.slice(0, 4)}-${digits.slice(4, 7)}`;
+  }
+
+  async function checkScheduleConflict(datetimeValue: string, excludeId: string) {
+    if (!datetimeValue) return { conflict: false };
+    try {
+      const res = await fetch(`/api/chamados/conflict?datetime=${encodeURIComponent(datetimeValue)}&exclude_id=${encodeURIComponent(excludeId)}`, { cache: 'no-store' });
+      if (!res.ok) return { conflict: false };
+      const data = await res.json();
+      return { conflict: !!data?.conflict, conflictId: data?.conflictId };
+    } catch {
+      return { conflict: false };
+    }
+  }
+
+  postalInput?.addEventListener('blur', async () => {
+    if (postalInput.disabled) return;
+    const normalized = normalizePostalCode(postalInput.value || '');
+    if (!normalized) return;
+    postalInput.value = normalized;
+
+    lockScreen(true);
+    try {
+      const res = await fetch(`/api/postal-code?code=${encodeURIComponent(normalized)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data?.found) return;
+
+      if (moradaInput && !moradaInput.disabled) moradaInput.value = data.morada || moradaInput.value;
+      if (bairroInput && !bairroInput.disabled) bairroInput.value = data.bairro || bairroInput.value;
+      if (cidadeInput && !cidadeInput.disabled) cidadeInput.value = data.cidade || cidadeInput.value;
+    } finally {
+      lockScreen(false);
+    }
+  });
+
+  async function syncEditWarning() {
+    if (!editHorarioInput || editHorarioInput.disabled) return;
+    const { conflict } = await checkScheduleConflict(editHorarioInput.value || '', String(chamadoId || ''));
+    if (!editHorarioWarning) return;
+    editHorarioWarning.classList.toggle('hidden', !conflict);
+  }
+
+  editHorarioInput?.addEventListener('change', syncEditWarning);
+  editHorarioInput?.addEventListener('blur', syncEditWarning);
+
+  editForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (isSubmittingEditForm) return;
+    isSubmittingEditForm = true;
+    if (!editHorarioInput || editHorarioInput.disabled) {
+      editForm.submit();
+      return;
+    }
+    const { conflict, conflictId } = await checkScheduleConflict(editHorarioInput.value || '', String(chamadoId || ''));
+    if (!conflict) {
+      if (editAllowConflict) editAllowConflict.value = '0';
+      editForm.submit();
+      return;
+    }
+    const confirmed = await openConflictModal(`Horario comprometido por outro agendamento (janela de 2h)${conflictId ? ` - Chamado #${conflictId}` : ''}. Deseja agendar mesmo assim?`);
+    if (!confirmed) {
+      isSubmittingEditForm = false;
+      return;
+    }
+    if (editAllowConflict) editAllowConflict.value = '1';
+    editForm.submit();
+  });
+
+  const cancelModal = document.getElementById('cancel-modal') as HTMLDivElement | null;
+  const cancelModalBackdrop = document.getElementById('cancel-modal-backdrop') as HTMLButtonElement | null;
+  const cancelModalClose = document.getElementById('cancel-modal-close') as HTMLButtonElement | null;
+  const cancelModalBack = document.getElementById('cancel-modal-back') as HTMLButtonElement | null;
+  const cancelModalConfirm = document.getElementById('cancel-modal-confirm') as HTMLButtonElement | null;
+  const cancelReasonInput = document.getElementById('cancel-reason-input') as HTMLTextAreaElement | null;
+  const cancelReasonError = document.getElementById('cancel-reason-error') as HTMLParagraphElement | null;
+  let pendingCancelForm = null;
+  const returnModal = document.getElementById('return-modal') as HTMLDivElement | null;
+  const returnModalBackdrop = document.getElementById('return-modal-backdrop') as HTMLButtonElement | null;
+  const returnModalClose = document.getElementById('return-modal-close') as HTMLButtonElement | null;
+  const returnModalBack = document.getElementById('return-modal-back') as HTMLButtonElement | null;
+  const returnModalConfirm = document.getElementById('return-modal-confirm') as HTMLButtonElement | null;
+  const returnDatetimeInput = document.getElementById('return-datetime-input') as HTMLInputElement | null;
+  const returnDescriptionInput = document.getElementById('return-description-input') as HTMLTextAreaElement | null;
+  const returnModalError = document.getElementById('return-modal-error') as HTMLParagraphElement | null;
+  let pendingReturnForm = null;
+  const paymentModal = document.getElementById('payment-modal') as HTMLDivElement | null;
+  const paymentModalBackdrop = document.getElementById('payment-modal-backdrop') as HTMLButtonElement | null;
+  const paymentModalClose = document.getElementById('payment-modal-close') as HTMLButtonElement | null;
+  const paymentModalBack = document.getElementById('payment-modal-back') as HTMLButtonElement | null;
+  const paymentModalConfirm = document.getElementById('payment-modal-confirm') as HTMLButtonElement | null;
+  const paymentMethodSelect = document.getElementById('payment-method-select') as HTMLSelectElement | null;
+  const paymentModalError = document.getElementById('payment-modal-error') as HTMLParagraphElement | null;
+  let pendingPaymentForm = null;
+  const conflictModal = document.getElementById('conflict-modal') as HTMLDivElement | null;
+  const conflictModalBackdrop = document.getElementById('conflict-modal-backdrop') as HTMLButtonElement | null;
+  const conflictModalClose = document.getElementById('conflict-modal-close') as HTMLButtonElement | null;
+  const conflictModalBack = document.getElementById('conflict-modal-back') as HTMLButtonElement | null;
+  const conflictModalConfirm = document.getElementById('conflict-modal-confirm') as HTMLButtonElement | null;
+  const conflictModalMessage = document.getElementById('conflict-modal-message') as HTMLParagraphElement | null;
+  let resolveConflictModal = null;
+  let isSubmittingEditForm = false;
+  let isSubmittingReturnForm = false;
+
+  function openCancelModal(form) {
+    pendingCancelForm = form;
+    if (cancelReasonInput) cancelReasonInput.value = '';
+    cancelReasonError?.classList.add('hidden');
+    cancelModal?.classList.remove('hidden');
+    cancelModal?.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => cancelReasonInput?.focus(), 50);
+  }
+
+  function closeCancelModal() {
+    pendingCancelForm = null;
+    cancelModal?.classList.add('hidden');
+    cancelModal?.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  function openReturnModal(form) {
+    pendingReturnForm = form;
+    if (returnDatetimeInput) returnDatetimeInput.value = '';
+    if (returnDescriptionInput) returnDescriptionInput.value = '';
+    returnModalError?.classList.add('hidden');
+    returnModal?.classList.remove('hidden');
+    returnModal?.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => returnDatetimeInput?.focus(), 50);
+  }
+
+  function closeReturnModal() {
+    pendingReturnForm = null;
+    returnModal?.classList.add('hidden');
+    returnModal?.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  function openPaymentModal(form) {
+    pendingPaymentForm = form;
+    paymentModalError?.classList.add('hidden');
+    paymentModal?.classList.remove('hidden');
+    paymentModal?.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => paymentMethodSelect?.focus(), 50);
+  }
+
+  function closePaymentModal() {
+    pendingPaymentForm = null;
+    paymentModal?.classList.add('hidden');
+    paymentModal?.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  function openConflictModal(message) {
+    if (conflictModalMessage) conflictModalMessage.textContent = message || 'Este horario esta comprometido.';
+    conflictModal?.classList.remove('hidden');
+    conflictModal?.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    return new Promise((resolve) => {
+      resolveConflictModal = resolve;
+      setTimeout(() => conflictModalConfirm?.focus(), 50);
+    });
+  }
+
+  function closeConflictModal(confirmed) {
+    conflictModal?.classList.add('hidden');
+    conflictModal?.setAttribute('aria-hidden', 'true');
+    if (!cancelModal || cancelModal.classList.contains('hidden')) {
+      if (!returnModal || returnModal.classList.contains('hidden')) {
+        if (!paymentModal || paymentModal.classList.contains('hidden')) {
+          document.body.style.overflow = '';
+        }
+      }
+    }
+    if (resolveConflictModal) {
+      const resolver = resolveConflictModal;
+      resolveConflictModal = null;
+      resolver(confirmed);
+    }
+  }
+
+  (window as any).handleCancelSubmit = function (form: HTMLFormElement) {
+    if (form.dataset.skipCancelModal === '1') {
+      form.dataset.skipCancelModal = '';
+      return true;
+    }
+    openCancelModal(form);
+    return false;
+  };
+
+  (window as any).handleReturnSubmit = function (form: HTMLFormElement) {
+    if (isSubmittingReturnForm) return false;
+    if (form.dataset.skipReturnModal === '1') {
+      form.dataset.skipReturnModal = '';
+      return true;
+    }
+    openReturnModal(form);
+    return false;
+  };
+
+  (window as any).handlePaymentSubmit = function (form: HTMLFormElement) {
+    if (form.dataset.skipPaymentModal === '1') {
+      form.dataset.skipPaymentModal = '';
+      return true;
+    }
+    openPaymentModal(form);
+    return false;
+  };
+
+  cancelModalBackdrop?.addEventListener('click', closeCancelModal);
+  cancelModalClose?.addEventListener('click', closeCancelModal);
+  cancelModalBack?.addEventListener('click', closeCancelModal);
+  cancelModalConfirm?.addEventListener('click', () => {
+    if (!pendingCancelForm) return;
+    const form = pendingCancelForm;
+    const reason = (cancelReasonInput?.value || '').trim();
+    if (!reason) {
+      cancelReasonError?.classList.remove('hidden');
+      cancelReasonInput?.focus();
+      return;
+    }
+    const input = form.querySelector('input[name="cancel_reason"]') as HTMLInputElement | null;
+    if (input) input.value = reason;
+    form.dataset.skipCancelModal = '1';
+    closeCancelModal();
+    form.submit();
+  });
+  returnModalBackdrop?.addEventListener('click', closeReturnModal);
+  returnModalClose?.addEventListener('click', closeReturnModal);
+  returnModalBack?.addEventListener('click', closeReturnModal);
+  returnModalConfirm?.addEventListener('click', () => {
+    if (!pendingReturnForm) return;
+    if (isSubmittingReturnForm) return;
+    const form = pendingReturnForm;
+    const dt = (returnDatetimeInput?.value || '').trim();
+    const desc = (returnDescriptionInput?.value || '').trim();
+    if (!dt || !desc) {
+      returnModalError?.classList.remove('hidden');
+      if (!dt) {
+        returnDatetimeInput?.focus();
+      } else {
+        returnDescriptionInput?.focus();
+      }
+      return;
+    }
+    const dtInput = form.querySelector('input[name="retorno_horario_agendado"]') as HTMLInputElement | null;
+    const descInput = form.querySelector('input[name="retorno_descricao"]') as HTMLInputElement | null;
+    const allowConflictInput = form.querySelector('input[name="retorno_allow_conflict"]') as HTMLInputElement | null;
+    if (dtInput) dtInput.value = dt;
+    if (descInput) descInput.value = desc;
+    isSubmittingReturnForm = true;
+    checkScheduleConflict(dt, String(chamadoId || '')).then(async ({ conflict, conflictId }) => {
+      if (!conflict) {
+        if (allowConflictInput) allowConflictInput.value = '0';
+        form.dataset.skipReturnModal = '1';
+        closeReturnModal();
+        form.submit();
+        return;
+      }
+      closeReturnModal();
+      const confirmed = await openConflictModal(`Horario comprometido por outro agendamento (janela de 2h)${conflictId ? ` - Chamado #${conflictId}` : ''}. Deseja agendar mesmo assim?`);
+      if (!confirmed) {
+        isSubmittingReturnForm = false;
+        return;
+      }
+      if (allowConflictInput) allowConflictInput.value = '1';
+      form.dataset.skipReturnModal = '1';
+      form.submit();
+    }).catch(() => {
+      isSubmittingReturnForm = false;
+    });
+  });
+  paymentModalBackdrop?.addEventListener('click', closePaymentModal);
+  paymentModalClose?.addEventListener('click', closePaymentModal);
+  paymentModalBack?.addEventListener('click', closePaymentModal);
+  paymentModalConfirm?.addEventListener('click', () => {
+    if (!pendingPaymentForm) return;
+    const form = pendingPaymentForm;
+    const method = (paymentMethodSelect?.value || '').trim();
+    if (!method) {
+      paymentModalError?.classList.remove('hidden');
+      paymentMethodSelect?.focus();
+      return;
+    }
+    const methodInput = form.querySelector('input[name="payment_method"]') as HTMLInputElement | null;
+    if (methodInput) methodInput.value = method;
+    form.dataset.skipPaymentModal = '1';
+    closePaymentModal();
+    form.submit();
+  });
+  conflictModalBackdrop?.addEventListener('click', () => closeConflictModal(false));
+  conflictModalClose?.addEventListener('click', () => closeConflictModal(false));
+  conflictModalBack?.addEventListener('click', () => closeConflictModal(false));
+  conflictModalConfirm?.addEventListener('click', () => closeConflictModal(true));
+
+  document.querySelectorAll('.js-resend-email').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const enabled = btn.getAttribute('data-enabled') === '1';
+      if (!enabled) return;
+
+      const formId = btn.getAttribute('data-form-id');
+      const currentEmail = btn.getAttribute('data-current-email') || '';
+      const email = window.prompt('Confirmar email para envio do orçamento:', currentEmail);
+      if (email === null) return;
+      const finalEmail = email.trim();
+      if (!finalEmail) return;
+
+      const form = formId ? document.getElementById(formId) : null;
+      if (!form) return;
+      const input = form.querySelector('input[name="to_email"]');
+      if (input) input.value = finalEmail;
+      form.submit();
+    });
+  });
+
+  document.querySelectorAll('.js-resend-whatsapp').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const enabled = btn.getAttribute('data-enabled') === '1';
+      if (!enabled) return;
+
+      const formId = btn.getAttribute('data-form-id');
+      const currentPhone = btn.getAttribute('data-current-phone') || '';
+      const phone = window.prompt('Confirmar telemóvel para envio por WhatsApp:', currentPhone);
+      if (phone === null) return;
+      const finalPhone = phone.trim();
+      if (!finalPhone) return;
+
+      const form = formId ? document.getElementById(formId) : null;
+      if (!form) return;
+      const input = form.querySelector('input[name="to_phone"]');
+      if (input) input.value = finalPhone;
+      form.submit();
+    });
+  });
+
+  const liveEl = document.getElementById('live-signature');
+  let currentSignature = liveEl?.getAttribute('data-signature') || '';
+  const chamadoId = liveEl?.getAttribute('data-chamado-id') || '';
+
+  async function pollLiveState() {
+    try {
+      if (!chamadoId) return;
+      if (document.hidden) return;
+      const res = await fetch(`/api/chamados/${encodeURIComponent(chamadoId)}?live=1`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data?.signature) return;
+      if (currentSignature && data.signature !== currentSignature) {
+        window.location.reload();
+      }
+      currentSignature = data.signature;
+    } catch {
+      // ignore transient polling errors
+    }
+  }
+
+  setInterval(pollLiveState, 3000);
+</script>

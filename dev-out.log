@@ -1,0 +1,32 @@
+
+> primebussines@0.0.1 dev
+> astro dev
+
+[2m18:15:35[22m [34m[@astrojs/netlify][39m Enabling sessions with Netlify Blobs
+[2m18:15:36[22m [34m[vite][39m Environment loaded
+[2m18:15:36[22m [34m[vite][39m Middleware loaded. Emulating features: aiGateway, blobs, edgeFunctions, functions, geolocation, headers, images, redirects, static.
+[2m18:15:36[22m [34m[types][39m Generated [2m2ms[22m
+[2m18:15:36[22m [34m[content][39m Syncing content
+[2m18:15:36[22m [34m[content][39m Synced content
+
+[42m[1m astro [22m[49m [32mv5.18.1[39m [2mready in[22m 3343 [2mms[22m
+
+[2m┃[22m Local    [36mhttp://localhost:4300/[39m
+[2m┃[22m Network  [2muse --host to expose[22m
+
+[2m18:15:36[22m [32mwatching for file changes...[39m
+[2m18:16:51[22m [33m[302][39m / [2m429ms[22m
+[2m18:16:52[22m [34m[200[2m18:25:38[22m Configuration file removed. Restarting...
+[2m18:25:38[22m [34m[vite][39m [32m.env changed, restarting server...[39m
+[2m18:25:39[22m [34m[@astrojs/netlify][39m Enabling sessions with Netlify Blobs
+[2m18:31:00[22m [34m[vite][39m [32m.env changed, restarting server...[39m
+[33m[1m18:31:00[22m [WARN] [vite][39m ⚠ Warning: Multiple instances of @netlify/vite-plugin have been loaded. This may cause unexpected behavior if the plugin is configured differently in each instance. If you have one instance of this plugin in your Vite config, you may safely remove it.
+[2m18:31:01[22m [34m[vite][39m Environment loaded
+[2m18:31:01[22m [34m[vite][39m Middleware loaded. Emulating features: aiGateway, blobs, edgeFunctions, functions, geolocation, headers, images, redirects, static.
+[2m18:31:01[22m [34m[vite][39m 💭 Linking this project to a Netlify[2m18:31:01[22m [34m[vite][39m Environment loaded
+[2m18:31:01[22m [34m[vite][39m Middleware loaded. Emulating features: aiGateway, blobs, edgeFunctions, functions, geolocation, headers, images, redirects, static.
+[2m18:31:01[22m [34m[vite][39m 💭 Linking this project to a Netlify site lets you deploy your site, use any environment variables defined on your team and site and much more. Run npx netlify init to get started.
+[2m18:31:01[22m [34m[vite][39m Port 5173 is in use, trying another one...
+[2m18:31:01[22m [34m[vite][39m server restarted.
+[2m18:31:01[22m [34m[vite][39m 
+[2m18:31:01[22m [34m[vite][39m   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5174[22m/[39m

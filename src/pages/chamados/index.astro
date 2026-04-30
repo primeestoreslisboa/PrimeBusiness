@@ -1,0 +1,321 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getDb } from '../../lib/db';
+import { getIvaRate } from '../../lib/settings';
+
+const user = Astro.locals.user;
+const sql = getDb();
+
+const status = Astro.url.searchParams.get('status') || '';
+const search = Astro.url.searchParams.get('q') || '';
+
+let query = sql`
+  SELECT c.*, u.name as tecnico_nome, o.orc_id, o.total as orc_total, o.status as orc_status, COALESCE(oc.total_count, 0) as orc_count, ol.items as orc_list
+  FROM chamados c
+  LEFT JOIN users u ON c.tecnico_id = u.id
+  LEFT JOIN LATERAL (
+    SELECT id as orc_id, total, status
+    FROM orcamentos
+    WHERE chamado_id = c.id
+    ORDER BY created_at DESC
+    LIMIT 1
+  ) o ON true
+  LEFT JOIN LATERAL (
+    SELECT COUNT(*)::int as total_count
+    FROM orcamentos
+    WHERE chamado_id = c.id
+  ) oc ON true
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(
+      json_agg(
+        json_build_object('id', id, 'status', status, 'total', total, 'include_iva', include_iva, 'iva_rate', iva_rate)
+        ORDER BY created_at DESC
+      ),
+      '[]'::json
+    ) as items
+    FROM orcamentos
+    WHERE chamado_id = c.id
+  ) ol ON true
+  WHERE 1=1
+`;
+
+if (status) {
+  query = sql`
+    SELECT c.*, u.name as tecnico_nome, o.orc_id, o.total as orc_total, o.status as orc_status, COALESCE(oc.total_count, 0) as orc_count, ol.items as orc_list
+    FROM chamados c
+    LEFT JOIN users u ON c.tecnico_id = u.id
+    LEFT JOIN LATERAL (
+      SELECT id as orc_id, total, status
+      FROM orcamentos
+      WHERE chamado_id = c.id
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) o ON true
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int as total_count
+      FROM orcamentos
+      WHERE chamado_id = c.id
+    ) oc ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(
+        json_agg(
+          json_build_object('id', id, 'status', status, 'total', total, 'include_iva', include_iva, 'iva_rate', iva_rate)
+          ORDER BY created_at DESC
+        ),
+        '[]'::json
+      ) as items
+      FROM orcamentos
+      WHERE chamado_id = c.id
+    ) ol ON true
+    WHERE c.status = ${status}
+    ORDER BY c.horario_agendado DESC
+  `;
+} else if (search) {
+  query = sql`
+    SELECT c.*, u.name as tecnico_nome, o.orc_id, o.total as orc_total, o.status as orc_status, COALESCE(oc.total_count, 0) as orc_count, ol.items as orc_list
+    FROM chamados c
+    LEFT JOIN users u ON c.tecnico_id = u.id
+    LEFT JOIN LATERAL (
+      SELECT id as orc_id, total, status
+      FROM orcamentos
+      WHERE chamado_id = c.id
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) o ON true
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int as total_count
+      FROM orcamentos
+      WHERE chamado_id = c.id
+    ) oc ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(
+        json_agg(
+          json_build_object('id', id, 'status', status, 'total', total, 'include_iva', include_iva, 'iva_rate', iva_rate)
+          ORDER BY created_at DESC
+        ),
+        '[]'::json
+      ) as items
+      FROM orcamentos
+      WHERE chamado_id = c.id
+    ) ol ON true
+    WHERE c.nome ILIKE ${'%' + search + '%'} OR c.telefone ILIKE ${'%' + search + '%'} OR c.cidade ILIKE ${'%' + search + '%'}
+    ORDER BY c.horario_agendado DESC
+  `;
+} else {
+  query = sql`
+    SELECT c.*, u.name as tecnico_nome, o.orc_id, o.total as orc_total, o.status as orc_status, COALESCE(oc.total_count, 0) as orc_count, ol.items as orc_list
+    FROM chamados c
+    LEFT JOIN users u ON c.tecnico_id = u.id
+    LEFT JOIN LATERAL (
+      SELECT id as orc_id, total, status
+      FROM orcamentos
+      WHERE chamado_id = c.id
+      ORDER BY created_at DESC
+      LIMIT 1
+    ) o ON true
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int as total_count
+      FROM orcamentos
+      WHERE chamado_id = c.id
+    ) oc ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(
+        json_agg(
+          json_build_object('id', id, 'status', status, 'total', total, 'include_iva', include_iva, 'iva_rate', iva_rate)
+          ORDER BY created_at DESC
+        ),
+        '[]'::json
+      ) as items
+      FROM orcamentos
+      WHERE chamado_id = c.id
+    ) ol ON true
+    ORDER BY c.horario_agendado DESC
+    LIMIT 50
+  `;
+}
+
+const chamados = await query;
+const fallbackIvaRate = await getIvaRate(23);
+
+function getStatusBadge(status: string) {
+  const map: Record<string, { cls: string; label: string }> = {
+    pendente: { cls: 'bg-yellow-100 text-yellow-800', label: 'Pendente' },
+    em_andamento: { cls: 'bg-blue-100 text-blue-800', label: 'Em Andamento' },
+    concluido: { cls: 'bg-green-100 text-green-800', label: 'Concluido' },
+    cancelado: { cls: 'bg-red-100 text-red-800', label: 'Cancelado' },
+  };
+  return map[status] || { cls: 'bg-gray-100 text-gray-800', label: status };
+}
+
+function formatDateTime(dateStr: string) {
+  return new Date(dateStr).toLocaleString('pt-PT', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Lisbon',
+  });
+}
+
+function getOrcamentoLabel(status?: string) {
+  if (!status) return 'Sem orcamento';
+  if (status === 'pendente') return 'Pendente';
+  if (status === 'enviado') return 'Enviado';
+  if (status === 'aprovado') return 'Aceite';
+  if (status === 'concluido') return 'Rejeitado';
+  return status;
+}
+
+function getPaymentMethodLabel(method?: string | null) {
+  if (!method) return '-';
+  if (method === 'cash') return 'Numerario';
+  if (method === 'bank_transfer') return 'Transferencia bancaria';
+  if (method === 'mbway') return 'MB WAY';
+  if (method === 'other') return 'Outro';
+  return method;
+}
+
+function buildDuplicateUrl(chamado: any) {
+  const params = new URLSearchParams();
+  params.set('nome', String(chamado?.nome ?? ''));
+  params.set('telefone', String(chamado?.telefone ?? ''));
+  params.set('email', String(chamado?.email ?? ''));
+  params.set('codigo_postal', String(chamado?.codigo_postal ?? ''));
+  params.set('morada', String(chamado?.morada ?? ''));
+  params.set('bairro', String(chamado?.bairro ?? ''));
+  params.set('cidade', String(chamado?.cidade ?? ''));
+  return `/chamados/novo?${params.toString()}`;
+}
+---
+<Layout title="Chamados" user={user}>
+  <div class="py-6">
+    <div class="flex items-center justify-between mb-4">
+      <h1 class="text-2xl font-bold text-gray-800">Chamados</h1>
+      <a href="/chamados/novo" class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+        + Novo
+      </a>
+    </div>
+
+    <form method="GET" class="mb-4 space-y-2">
+      <div class="flex gap-2">
+        <input
+          type="text"
+          name="q"
+          value={search}
+          placeholder="Pesquisar por nome, telefone, cidade..."
+          class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none"
+        />
+        <button type="submit" class="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg text-sm transition">
+          Buscar
+        </button>
+      </div>
+      <div class="flex gap-2 overflow-x-auto pb-1">
+        {['', 'pendente', 'em_andamento', 'concluido', 'cancelado'].map(s => (
+          <a
+            href={s ? `?status=${s}` : '/chamados'}
+            class={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition ${
+              status === s ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {s === '' ? 'Todos' : s === 'pendente' ? 'Pendentes' : s === 'em_andamento' ? 'Em Andamento' : s === 'concluido' ? 'Concluidos' : 'Cancelados'}
+          </a>
+        ))}
+      </div>
+    </form>
+
+    {chamados.length === 0 ? (
+      <div class="bg-white rounded-xl p-8 text-center text-gray-400 shadow-sm">
+        <p class="text-sm">Nenhum chamado encontrado</p>
+        <a href="/chamados/novo" class="mt-4 inline-block text-green-600 text-sm">Criar primeiro chamado</a>
+      </div>
+    ) : (
+      <div class="space-y-3">
+        {chamados.map((c: any) => {
+          const badge = getStatusBadge(c.status);
+          const orcList = Array.isArray(c.orc_list) ? c.orc_list : [];
+          const duplicateUrl = buildDuplicateUrl(c);
+          return (
+            <div class="relative bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+              <a href={`/chamados/${c.id}`} class="block p-4 pr-24">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                      <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">#{c.id}</span>
+                      <span class="font-semibold text-gray-800">{c.nome}</span>
+                      <span class={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.cls}`}>{badge.label}</span>
+                    </div>
+                    <p class="text-sm text-gray-500">{c.telefone} | {c.cidade}</p>
+                    <p class="text-xs text-gray-400 mt-1 truncate">{c.descricao}</p>
+                    {orcList.length > 0 ? (
+                      <div class="mt-1 space-y-1">
+                        {orcList.map((o: any) => (
+                          <p class="text-xs text-gray-500">
+                            Orcamento: #{o.id} | EUR {(parseFloat(o.total || 0) * (o.include_iva ? (1 + ((Number.parseFloat(String(o.iva_rate ?? '0')) || fallbackIvaRate) / 100)) : 1)).toFixed(2)} | Estado: {getOrcamentoLabel(o.status)}
+                            {' '}
+                            <span
+                              class="text-red-700 hover:text-red-800 underline font-medium cursor-pointer"
+                              role="link"
+                              tabindex="0"
+                              onclick={`event.preventDefault(); event.stopPropagation(); window.location.href='/chamados/${c.id}?orc=${o.id}#orc-${o.id}'`}
+                              onkeydown={`if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation(); window.location.href='/chamados/${c.id}?orc=${o.id}#orc-${o.id}'}`}
+                            >
+                              Abrir
+                            </span>
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p class="text-xs text-gray-500 mt-1">Sem orcamentos</p>
+                    )}
+                    {c.status === 'concluido' && (
+                      <div class={`mt-2 inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 border text-xs font-medium ${c.paid_at ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                        <span class={`inline-block w-2 h-2 rounded-full ${c.paid_at ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                        <span class="uppercase tracking-wide">{c.paid_at ? 'Pago' : 'Pagamento pendente'}</span>
+                        {c.paid_at && (
+                          <span class="normal-case font-semibold">
+                            | {getPaymentMethodLabel(c.payment_method)} | EUR {(Number.parseFloat(String(c.payment_amount ?? '0')) || 0).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div class="absolute top-3 right-3 text-right">
+                    <p class="text-xs font-medium text-red-700">{formatDateTime(c.horario_agendado)}</p>
+                    {c.tecnico_nome && <p class="text-xs text-gray-400 mt-1">{c.tecnico_nome}</p>}
+                  </div>
+                </div>
+              </a>
+              <div class="absolute right-3 bottom-3 flex items-center gap-1">
+                <a
+                  href={duplicateUrl}
+                  class="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-800 transition"
+                  title="Duplicar chamado"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M10 20h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </a>
+
+                {user.role === 'admin' && c.status !== 'concluido' && c.status !== 'cancelado' && (
+                  <form method="POST" action={`/api/chamados/${c.id}`} data-confirm="Eliminar este chamado?">
+                    <input type="hidden" name="_method" value="DELETE" />
+                    <button
+                      type="submit"
+                      class="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 hover:bg-red-100 text-red-500 hover:text-red-700 transition"
+                      title="Eliminar"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-6 0h6" />
+                      </svg>
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+</Layout>
+

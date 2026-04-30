@@ -1,0 +1,198 @@
+---
+export interface Props {
+  title?: string;
+  user?: { name: string; role: string; email: string };
+}
+const { title = 'PrimeBussines', user } = Astro.props;
+const path = new URL(Astro.request.url).pathname;
+const isAdmin = user?.role === 'admin';
+---
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="theme-color" content="#8B1A1A"/>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <title>{title} | PrimeBussines</title>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <nav class="bg-red-700 text-white shadow-lg fixed top-0 left-0 right-0 z-50">
+    <div class="flex items-center justify-between px-4 py-3 max-w-4xl mx-auto">
+      <a href="/dashboard" class="text-lg font-bold tracking-tight flex items-center gap-2">
+        <span>Prime Bussines</span>
+      </a>
+      <div class="flex items-center gap-1">
+        {user && <span class="hidden sm:block text-sm opacity-80 mr-2">{user.name}</span>}
+
+        <a href="/dashboard" title="Dashboard"
+           class={`p-2 rounded-lg transition ${path === '/dashboard' ? 'bg-red-900' : 'hover:bg-red-800'}`}>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+          </svg>
+        </a>
+
+        <a href="/chamados" title="Chamados"
+           class={`p-2 rounded-lg transition ${path.startsWith('/chamados') ? 'bg-red-900' : 'hover:bg-red-800'}`}>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+        </a>
+
+        {isAdmin && (
+          <div class="relative group">
+            <button class={`p-2 rounded-lg transition ${path.startsWith('/admin') ? 'bg-red-900' : 'hover:bg-red-800'}`} title="Administracao">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+            </button>
+            <div class="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+              <a href="/admin/utilizadores" class="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-t-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/>
+                </svg>
+                Utilizadores
+              </a>
+              <a href="/admin/servicos" class="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-t border-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                </svg>
+                Catalogo de Servicos
+              </a>
+              <a href="/admin/configuracoes" class="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-b-xl border-t border-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                Configuracoes
+              </a>
+            </div>
+          </div>
+        )}
+
+        <a href="/api/auth/logout" title="Sair" class="p-2 rounded-lg hover:bg-red-800 transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="pt-16 pb-8 px-4 max-w-4xl mx-auto">
+    <slot/>
+  </main>
+
+  <div id="app-confirm-modal" class="fixed inset-0 z-[80] hidden" aria-hidden="true">
+    <button id="app-confirm-backdrop" type="button" class="absolute inset-0 bg-black/40"></button>
+    <div class="absolute inset-0 flex items-end sm:items-center sm:justify-center p-0 sm:p-4">
+      <div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-4 sm:p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-base font-semibold text-gray-800">Confirmar Acao</h3>
+          <button id="app-confirm-close" type="button" class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">✕</button>
+        </div>
+        <p id="app-confirm-message" class="text-sm text-gray-700 mb-4"></p>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="app-confirm-cancel" type="button" class="w-full py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
+            Voltar
+          </button>
+          <button id="app-confirm-ok" type="button" class="w-full py-2.5 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-700 text-white transition">
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 sm:hidden z-50">
+    <div class="flex justify-around items-center py-1">
+      <a href="/dashboard" class={`flex flex-col items-center gap-0.5 px-3 py-2 ${path==='/dashboard'?'text-red-700':'text-gray-500'}`}>
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        <span class="text-xs">Inicio</span>
+      </a>
+      <a href="/chamados" class={`flex flex-col items-center gap-0.5 px-3 py-2 ${path.startsWith('/chamados')?'text-red-700':'text-gray-500'}`}>
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <span class="text-xs">Chamados</span>
+      </a>
+      <a href="/chamados/novo" class="flex flex-col items-center gap-0.5 px-3 py-2 text-green-600 -mt-4">
+        <div class="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center shadow-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+        </div>
+        <span class="text-xs">Novo</span>
+      </a>
+      {isAdmin && (
+        <a href="/admin/servicos" class={`flex flex-col items-center gap-0.5 px-3 py-2 ${path.startsWith('/admin')?'text-red-700':'text-gray-500'}`}>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <span class="text-xs">Admin</span>
+        </a>
+      )}
+      <a href="/api/auth/logout" class="flex flex-col items-center gap-0.5 px-3 py-2 text-gray-500">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+        </svg>
+        <span class="text-xs">Sair</span>
+      </a>
+    </div>
+  </nav>
+
+  <script>
+    const confirmModal = document.getElementById('app-confirm-modal');
+    const confirmBackdrop = document.getElementById('app-confirm-backdrop');
+    const confirmClose = document.getElementById('app-confirm-close');
+    const confirmCancel = document.getElementById('app-confirm-cancel');
+    const confirmOk = document.getElementById('app-confirm-ok');
+    const confirmMessage = document.getElementById('app-confirm-message');
+    let pendingConfirmForm = null;
+
+    function openConfirmModal(form, message) {
+      pendingConfirmForm = form;
+      if (confirmMessage) confirmMessage.textContent = message;
+      confirmModal?.classList.remove('hidden');
+      confirmModal?.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeConfirmModal() {
+      pendingConfirmForm = null;
+      confirmModal?.classList.add('hidden');
+      confirmModal?.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+
+    document.addEventListener('submit', (event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) return;
+      const message = form.getAttribute('data-confirm');
+      if (!message) return;
+      if (form.dataset.skipConfirm === '1') {
+        form.dataset.skipConfirm = '';
+        return;
+      }
+      event.preventDefault();
+      if (form.dataset.confirmStopPropagation === '1') {
+        event.stopPropagation();
+      }
+      openConfirmModal(form, message);
+    }, true);
+
+    confirmBackdrop?.addEventListener('click', closeConfirmModal);
+    confirmClose?.addEventListener('click', closeConfirmModal);
+    confirmCancel?.addEventListener('click', closeConfirmModal);
+    confirmOk?.addEventListener('click', () => {
+      if (!pendingConfirmForm) return;
+      const form = pendingConfirmForm;
+      form.dataset.skipConfirm = '1';
+      closeConfirmModal();
+      form.submit();
+    });
+  </script>
+</body>
+</html>

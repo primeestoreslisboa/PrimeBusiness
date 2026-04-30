@@ -1,0 +1,147 @@
+﻿---
+import { getDb } from '../../lib/db';
+import { getIvaRate } from '../../lib/settings';
+
+const token = Astro.url.searchParams.get('token')?.trim() || '';
+const status = Astro.url.searchParams.get('status') || '';
+const sql = getDb();
+
+let orcamento: any = null;
+const fallbackIvaRate = await getIvaRate(23);
+
+if (token) {
+  const rows = await sql`
+    SELECT o.id, o.total, o.include_iva, o.iva_rate, o.status, o.aceite_at, o.enviado_at, c.nome
+    FROM orcamentos o
+    JOIN chamados c ON c.id = o.chamado_id
+    WHERE o.aceite_token = ${token}
+    LIMIT 1
+  `;
+  orcamento = rows[0] ?? null;
+}
+
+const locked = orcamento?.status === 'aprovado' || orcamento?.status === 'concluido';
+const orcIvaRate = Number.parseFloat(String(orcamento?.iva_rate ?? '0')) || fallbackIvaRate;
+---
+<!doctype html>
+<html lang="pt-PT">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Decisao do Orcamento</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        color: #1f2937;
+      }
+      .card {
+        width: min(680px, calc(100% - 32px));
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+        padding: 24px;
+      }
+      .title {
+        margin: 0 0 12px;
+        font-size: 1.4rem;
+      }
+      .muted {
+        color: #6b7280;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 0;
+        border-bottom: 1px solid #f3f4f6;
+      }
+      .row:last-child { border-bottom: 0; }
+      .badge {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .ok { background: #dcfce7; color: #166534; }
+      .warn { background: #fef9c3; color: #854d0e; }
+      .err { background: #fee2e2; color: #991b1b; }
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 18px;
+      }
+      .btn {
+        width: 100%;
+        border: 0;
+        color: white;
+        font-size: 15px;
+        font-weight: 700;
+        padding: 12px 16px;
+        border-radius: 10px;
+        cursor: pointer;
+      }
+      .btn-approve { background: #16a34a; }
+      .btn-reject { background: #dc2626; }
+      .btn[disabled] {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1 class="title">Decisao do Orcamento</h1>
+
+      {!orcamento && (
+        <>
+          <p class="muted">Nao encontramos este orcamento ou o link e invalido.</p>
+          <span class="badge err">Link invalido</span>
+        </>
+      )}
+
+      {orcamento && (
+        <>
+          <div class="row"><strong>Cliente</strong><span>{orcamento.nome}</span></div>
+          <div class="row"><strong>Orcamento</strong><span>#{orcamento.id}</span></div>
+          <div class="row"><strong>Total</strong><span>EUR {(parseFloat(orcamento.total) * (orcamento.include_iva ? (1 + orcIvaRate / 100) : 1)).toFixed(2)}</span></div>
+          {orcamento.include_iva && <div class="row"><strong>IVA</strong><span>{orcIvaRate.toFixed(2)}%</span></div>}
+          <div class="row">
+            <strong>Estado</strong>
+            <span>
+              {orcamento.status === 'aprovado' && <span class="badge ok">Aprovado</span>}
+              {orcamento.status === 'concluido' && <span class="badge err">Rejeitado</span>}
+              {orcamento.status !== 'aprovado' && orcamento.status !== 'concluido' && <span class="badge warn">{orcamento.status}</span>}
+            </span>
+          </div>
+
+          {status === 'approved' && <p><span class="badge ok">Orcamento aprovado com sucesso.</span></p>}
+          {status === 'rejected' && <p><span class="badge err">Orcamento rejeitado com sucesso.</span></p>}
+          {status === 'already_approved' && <p><span class="badge ok">Este orcamento ja foi aprovado.</span></p>}
+          {status === 'already_rejected' && <p><span class="badge err">Este orcamento ja foi rejeitado.</span></p>}
+          {status === 'error' && <p><span class="badge err">Ocorreu um erro ao confirmar.</span></p>}
+
+          <div class="actions">
+            <form method="POST" action="/api/orcamento/aceitar">
+              <input type="hidden" name="token" value={token} />
+              <input type="hidden" name="decisao" value="aprovar" />
+              <button class="btn btn-approve" type="submit" disabled={locked}>Aprovar Orcamento</button>
+            </form>
+            <form method="POST" action="/api/orcamento/aceitar">
+              <input type="hidden" name="token" value={token} />
+              <input type="hidden" name="decisao" value="rejeitar" />
+              <button class="btn btn-reject" type="submit" disabled={locked}>Rejeitar Orcamento</button>
+            </form>
+          </div>
+        </>
+      )}
+    </main>
+  </body>
+</html>

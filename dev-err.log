@@ -1,0 +1,199 @@
+[31m[1m18:25:39[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: ENOENT: no such file or directory, open 'C:\Users\Edward\source\repos\PrimeBussines\src\pages\admin\utilizadores\[id].astro'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:25:39[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: ENOENT: no such file or directory, open 'C:\Users\Edward\source\repos\PrimeBussines\src\pages\admin\utilizadores\[id].astro'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:25:39[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: ENOENT: no such file or directory, open 'C:\Users\Edward\source\repos\PrimeBussines\src\pages\api\init.ts'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:25:39[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: ENOENT: no such file or directory, open 'C:\Users\Edward\source\repos\PrimeBussines\src\pages\api\init.ts'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:25:39[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: ENOENT: no such file or directory, open 'C:\Users\Edward\source\repos\PrimeBussines\src\pages\api\init.ts'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:25:40[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: ENOENT: no such file or directory, open 'C:\Users\Edward\source\repos\PrimeBussines\src\pages\chamados\novo.astro'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:25:40[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: ENOENT: no such file or directory, open 'C:\Users\Edward\source\repos\PrimeBussines\src\pages\dashboard.astro'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:30:40[22m [ERROR] [config][39m Failed retrieving user account: Too Many Requests. Double-check your login status with 'netlify status' or contact support with details of your error.
+  [1mStack trace:[22m
+[2m    at getError (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/config/lib/error.js:14:16)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+
+[31m[1m18:30:40[22m [ERROR][39m Continuing with previous valid configuration
+
+[0m[1m[31merror[0m: Uncaught (in promise) TypeError: Unable to load C:\Users\Edward\source\repos\PrimeBussines\node_modules\@netlify\edge-functions-dev\dist\deno\server.mjs
+  Caused by:
+    The system cannot find the file specified. (os error 2)
+[31m[1m18:31:05[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: Could not establish a connection to the Netlify Edge Functions local development server
+    at EdgeFunctionsHandler.waitForDenoServer (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/edge-functions-dev/dist/node/main.js:317:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async EdgeFunctionsHandler.initialize (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/edge-functions-dev/dist/node/main.js:277:7)
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at C:\Users\Edward\source\repos\PrimeBussines\node_modules\@netlify\edge-functions-dev\dist\node\main.js:317:15
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:31:05[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: Could not establish a connection to the Netlify Edge Functions local development server
+    at EdgeFunctionsHandler.waitForDenoServer (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/edge-functions-dev/dist/node/main.js:317:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async EdgeFunctionsHandler.initialize (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/edge-functions-dev/dist/node/main.js:277:7)
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at EdgeFunctionsHandler.waitForDenoServer (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/edge-functions-dev/dist/node/main.js:317:15)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+^C^Csync open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:25:39[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: ENOENT: no such file or directory, open 'C:\Users\Edward\source\repos\PrimeBussines\src\pages\api\public\agendamento.ts'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:25:39[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: ENOENT: no such file or directory, open 'C:\Users\Edward\source\repos\PrimeBussines\src\pages\api\public\agendamento.ts'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:25:40[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: ENOENT: no such file or directory, open 'C:\Users\Edward\source\repos\PrimeBussines\src\pages\chamados\novo.astro'
+    at async open (node:internal/fs/promises:639:25)
+    at async Object.readFile (node:internal/fs/promises:1246:14)
+    at async file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/astro/dist/core/routing/manifest/create.js:336:25
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at async open (node:internal/fs/promises:639:25)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:30:39[22m [ERROR] [config][39m Failed retrieving user account: Too Many Requests. Double-check your login status with 'netlify status' or contact support with details of your error.
+  [1mStack trace:[22m
+[2m    at getError (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/config/lib/error.js:14:16)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+
+[31m[1m18:30:39[22m [ERROR][39m Continuing with previous valid configuration
+
+[0m[1m[31merror[0m: Uncaught (in promise) TypeError: Unable to load C:\Users\Edward\source\repos\PrimeBussines\node_modules\@netlify\edge-functions-dev\dist\deno\server.mjs
+  Caused by:
+    The system cannot find the file specified. (os error 2)
+[31m[1m18:31:04[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: Could not establish a connection to the Netlify Edge Functions local development server
+    at EdgeFunctionsHandler.waitForDenoServer (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/edge-functions-dev/dist/node/main.js:317:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async EdgeFunctionsHandler.initialize (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/edge-functions-dev/dist/node/main.js:277:7)
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at C:\Users\Edward\source\repos\PrimeBussines\node_modules\@netlify\edge-functions-dev\dist\node\main.js:317:15
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+[31m[1m18:31:04[22m [ERROR][39m [31m[UnhandledRejection][39m Astro detected an unhandled rejection. Here's the stack trace:
+Error: Could not establish a connection to the Netlify Edge Functions local development server
+    at EdgeFunctionsHandler.waitForDenoServer (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/edge-functions-dev/dist/node/main.js:317:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async EdgeFunctionsHandler.initialize (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/edge-functions-dev/dist/node/main.js:277:7)
+  [1mHint:[22m
+[33m    Make sure your promises all have an `await` or a `.catch()` handler.[39m
+  [1mError reference:[22m
+    [36m[4mhttps://docs.astro.build/en/reference/errors/unhandled-rejection/[24m[39m
+  [1mStack trace:[22m
+[2m    at EdgeFunctionsHandler.waitForDenoServer (file:///C:/Users/Edward/source/repos/PrimeBussines/node_modules/@netlify/edge-functions-dev/dist/node/main.js:317:15)
+    [...] See full stack trace in the browser, or rerun with --verbose.[22m
+^C^C

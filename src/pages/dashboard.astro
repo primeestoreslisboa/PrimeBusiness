@@ -1,0 +1,229 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getDb } from '../lib/db';
+
+const user = Astro.locals.user;
+const sql  = getDb();
+
+const dateParam = Astro.url.searchParams.get('date');
+const selDate   = dateParam ? new Date(dateParam + 'T12:00:00') : new Date();
+const selYear   = selDate.getFullYear();
+const selMonth  = selDate.getMonth();
+const selDay    = selDate.getDate();
+
+const selStart = new Date(selYear, selMonth, selDay);
+const selEnd   = new Date(selYear, selMonth, selDay + 1);
+
+const chamadosDia = await sql`
+  SELECT c.*, u.name as tecnico_nome
+  FROM chamados c LEFT JOIN users u ON c.tecnico_id = u.id
+  WHERE c.horario_agendado >= ${selStart.toISOString()} AND c.horario_agendado < ${selEnd.toISOString()}
+  ORDER BY c.horario_agendado ASC
+`;
+
+const chamadosDiaConsumidos = chamadosDia.filter(
+  (c: any) => c.status !== 'concluido' && c.status !== 'cancelado'
+);
+
+const monthStart = new Date(selYear, selMonth, 1);
+const monthEnd   = new Date(selYear, selMonth + 1, 1);
+
+const chamadosMes = await sql`
+  SELECT id, horario_agendado, status
+  FROM chamados
+  WHERE horario_agendado >= ${monthStart.toISOString()} AND horario_agendado < ${monthEnd.toISOString()}
+`;
+
+const chamadosMesConsumidos = chamadosMes.filter(
+  (c: any) => c.status !== 'cancelado'
+);
+
+const [stats] = await sql`
+  SELECT
+    COUNT(*) FILTER (WHERE status='pendente')     as pendentes,
+    COUNT(*) FILTER (WHERE status='em_andamento') as em_andamento,
+    COUNT(*) FILTER (WHERE status='concluido' AND DATE(horario_agendado)=CURRENT_DATE) as concluidos_hoje,
+    COUNT(*) FILTER (WHERE horario_agendado >= ${monthStart.toISOString()} AND horario_agendado < ${monthEnd.toISOString()}) as total
+  FROM chamados
+`;
+
+const porDia: Record<number,number> = {};
+for (const c of chamadosMesConsumidos) {
+  const d = new Date(c.horario_agendado).getDate();
+  porDia[d] = (porDia[d] || 0) + 1;
+}
+
+const today       = new Date();
+const isToday     = selYear === today.getFullYear() && selMonth === today.getMonth() && selDay === today.getDate();
+const daysInMonth = new Date(selYear, selMonth + 1, 0).getDate();
+const firstDow    = new Date(selYear, selMonth, 1).getDay();
+const offset      = firstDow === 0 ? 6 : firstDow - 1;
+
+const MONTHS = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const STATUS_CLS: Record<string,string> = {
+  pendente:'bg-yellow-100 text-yellow-800', em_andamento:'bg-blue-100 text-blue-800',
+  concluido:'bg-green-100 text-green-800',  cancelado:'bg-red-100 text-red-800',
+};
+const STATUS_LABEL: Record<string,string> = {
+  pendente: 'Pendente',
+  em_andamento: 'Em andamento',
+  concluido: 'Concluido',
+  cancelado: 'Cancelado',
+};
+const fmt = (d:string) => new Date(d).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'});
+const timelineRows = Array.from({ length: 14 }, (_, i) => {
+  const hour = i + 7;
+  const slotAt = new Date(selYear, selMonth, selDay, hour, 0, 0, 0);
+  const evs = chamadosDiaConsumidos
+    .filter((c: any) => {
+      const startHour = new Date(c.horario_agendado).getHours();
+      if (c.status === 'pendente') return hour === startHour;
+      return hour >= startHour;
+    })
+    .map((c: any) => {
+      const startHour = new Date(c.horario_agendado).getHours();
+      return {
+        ...c,
+        isContinuation: c.status !== 'pendente' && hour > startHour,
+      };
+    });
+  const isPastEmpty = slotAt < today && evs.length === 0;
+  return { hour, evs, hidden: isPastEmpty };
+}).filter((row) => !row.hidden);
+
+const prevM = new Date(selYear, selMonth - 1, 1);
+const nextM = new Date(selYear, selMonth + 1, 1);
+const dayLink = (d: number) => `?date=${selYear}-${String(selMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+---
+<Layout title="Dashboard" user={user}>
+  <div class="py-6 pb-24">
+
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">
+          {isToday ? `Bom dia, ${user.name.split(' ')[0]}!` : `${selDay} de ${MONTHS[selMonth]}`}
+        </h1>
+        <p class="text-gray-500 text-sm">{selDate.toLocaleDateString('pt-PT',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</p>
+      </div>
+      {!isToday && <a href="/dashboard" class="text-sm text-red-700 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50 transition">Hoje</a>}
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 mb-5 sm:grid-cols-4">
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <p class="text-2xl font-bold text-yellow-500">{stats.pendentes}</p>
+        <p class="text-xs text-gray-500 mt-1">Pendentes</p>
+      </div>
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <p class="text-2xl font-bold text-blue-600">{stats.em_andamento}</p>
+        <p class="text-xs text-gray-500 mt-1">Em Andamento</p>
+      </div>
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <p class="text-2xl font-bold text-green-500">{stats.concluidos_hoje}</p>
+        <p class="text-xs text-gray-500 mt-1">Concluidos Hoje</p>
+      </div>
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <p class="text-2xl font-bold text-gray-700">{stats.total}</p>
+        <p class="text-xs text-gray-500 mt-1">Total</p>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 mb-5">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <a href={`?date=${prevM.getFullYear()}-${String(prevM.getMonth()+1).padStart(2,'0')}-01`}
+           class="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-500">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </a>
+        <h2 class="font-semibold text-gray-800">{MONTHS[selMonth]} {selYear}</h2>
+        <a href={`?date=${nextM.getFullYear()}-${String(nextM.getMonth()+1).padStart(2,'0')}-01`}
+           class="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-500">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </a>
+      </div>
+      <div class="grid grid-cols-7 border-b border-gray-100">
+        {['Seg','Ter','Qua','Qui','Sex','Sab','Dom'].map(d => (
+          <div class="py-2 text-center text-xs font-medium text-gray-400">{d}</div>
+        ))}
+      </div>
+      <div class="grid grid-cols-7">
+        {Array.from({length: offset}, () => (
+          <div class="h-12 border-b border-r border-gray-50 last:border-r-0"/>
+        ))}
+        {Array.from({length: daysInMonth}, (_,i) => {
+          const d    = i + 1;
+          const isSel= d === selDay;
+          const isTod= d === today.getDate() && selMonth === today.getMonth() && selYear === today.getFullYear();
+          const cnt  = porDia[d] || 0;
+          const col  = (offset + d - 1) % 7;
+          const isWe = col >= 5;
+          return (
+            <a href={dayLink(d)}
+               class={`h-12 flex flex-col items-center justify-center border-b border-r border-gray-50 transition relative
+                 ${isSel ? 'bg-red-700' : isTod ? 'bg-red-50' : isWe ? 'bg-gray-50/60 hover:bg-gray-100' : 'hover:bg-gray-50'}`}>
+              <span class={`text-sm font-medium leading-none
+                ${isSel ? 'text-white' : isTod ? 'text-red-700 font-bold' : isWe ? 'text-gray-400' : 'text-gray-700'}`}>{d}</span>
+              {cnt > 0 && (
+                <span class={`mt-0.5 text-xs leading-none font-semibold ${isSel ? 'text-red-200' : 'text-red-600'}`}>{cnt}</span>
+              )}
+            </a>
+          );
+        })}
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 mb-5">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <h2 class="font-semibold text-gray-800 flex items-center gap-2">
+          Agenda - {selDay} de {MONTHS[selMonth]}
+          {chamadosDiaConsumidos.length > 0 && <span class="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full">{chamadosDiaConsumidos.length}</span>}
+        </h2>
+        <a href="/chamados/novo" class="text-sm text-green-600 font-medium">+ Novo</a>
+      </div>
+      {chamadosDia.length === 0 ? (
+        <div class="px-4 py-8 text-center text-gray-400">
+          <p class="text-4xl mb-2">Agenda</p>
+          <p class="text-sm">Nenhum chamado para este dia</p>
+        </div>
+      ) : (
+        <div class="divide-y divide-gray-50">
+          {chamadosDia.map((c: any) => (
+            <a href={`/chamados/${c.id}`} class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition">
+              <div class="min-w-[48px] text-sm font-bold text-red-700">{fmt(c.horario_agendado)}</div>
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-gray-800 truncate">{c.nome}</p>
+                <p class="text-xs text-gray-500 truncate">{c.cidade} - {c.descricao.substring(0,50)}{c.descricao.length>50?'...':''}</p>
+              </div>
+              <span class={`flex-shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[c.status] || 'bg-gray-100 text-gray-800'}`}>{STATUS_LABEL[c.status] || c.status}</span>
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+      <div class="px-4 py-3 border-b border-gray-100">
+        <h2 class="font-semibold text-gray-800">Timeline - {selDay}/{selMonth+1}/{selYear}</h2>
+      </div>
+      <div class="px-4 py-3">
+        {timelineRows.map(({ hour, evs }) => (
+            <div class="flex items-start gap-2 mb-1">
+              <span class="text-xs text-gray-400 w-10 pt-1 flex-shrink-0 font-mono">{hour}:00</span>
+              <div class={`flex-1 border-t border-dashed border-gray-200 pt-1 ${evs.length>0?'min-h-[36px]':'min-h-[20px]'}`}>
+                {evs.map((c:any) => (
+                  <a href={`/chamados/${c.id}`}
+                     class={`block mb-1 text-white text-xs px-2 py-1 rounded truncate hover:opacity-90 transition
+                       ${c.status==='concluido'?'bg-green-500':c.status==='cancelado'?'bg-red-500':c.status==='em_andamento'?'bg-blue-500':'bg-yellow-500'}`}>
+                    {c.isContinuation ? `Em curso - ${c.nome}` : `${fmt(c.horario_agendado)} - ${c.nome}`}
+                  </a>
+                ))}
+              </div>
+            </div>
+        ))}
+      </div>
+    </div>
+
+  </div>
+</Layout>

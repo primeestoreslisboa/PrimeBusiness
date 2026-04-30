@@ -1,0 +1,62 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { getDb } from '../../../lib/db';
+const user = Astro.locals.user;
+const { id } = Astro.params;
+const sql = getDb();
+const [s] = await sql`SELECT * FROM servicos WHERE id = ${id}`;
+if (!s) return Astro.redirect('/admin/servicos');
+const success = Astro.url.searchParams.get('success');
+const error   = Astro.url.searchParams.get('error');
+---
+<Layout title={`Serviço — ${s.nome}`} user={user}>
+  <div class="py-6 pb-24">
+    <div class="flex items-center gap-3 mb-6">
+      <a href="/admin/servicos" class="text-gray-400 hover:text-gray-600">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </a>
+      <h1 class="text-2xl font-bold text-gray-800">{s.nome}</h1>
+    </div>
+    {success && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">✅ Serviço atualizado!</div>}
+    {error   && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">❌ Erro ao guardar.</div>}
+    <form method="POST" action={`/api/servicos/${id}`} class="space-y-4">
+      <input type="hidden" name="_method" value="PUT"/>
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+          <input type="text" name="nome" value={s.nome} required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none"/>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+          <textarea name="descricao" rows="2" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none resize-none">{s.descricao || ''}</textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Preço (€) *</label>
+            <input type="number" name="preco" step="0.01" min="0" value={parseFloat(s.preco).toFixed(2)} required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none"/>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Unidade</label>
+            <input type="text" name="unidade" value={s.unidade} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none"/>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <input type="checkbox" name="ativo" id="ativo" value="true" checked={s.ativo} class="w-4 h-4 text-red-700 rounded"/>
+          <label for="ativo" class="text-sm font-medium text-gray-700">Serviço ativo (visível para técnicos)</label>
+        </div>
+      </div>
+      <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition">💾 Guardar Alterações</button>
+    </form>
+    <form method="POST" action={`/api/servicos/${id}`} data-confirm="Eliminar este serviço?">
+      <input type="hidden" name="_method" value="DELETE"/>
+      <button type="submit" class="w-full mt-2 bg-white hover:bg-red-50 border border-red-200 text-red-600 font-medium py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+        Eliminar Serviço
+      </button>
+    </form>
+  </div>
+</Layout>
