@@ -212,6 +212,27 @@ function formatDateTimePt(value?: string | null) {
   }).format(date);
 }
 
+function formatDateTimeRangePt(value?: string | null, durationHours = 3) {
+  if (!value) return '-';
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const start = new Date(normalized);
+  if (Number.isNaN(start.getTime())) return value;
+
+  const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
+  const dateFormatter = new Intl.DateTimeFormat('pt-PT', {
+    dateStyle: 'full',
+    timeZone: 'Europe/Lisbon',
+  });
+  const timeFormatter = new Intl.DateTimeFormat('pt-PT', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Europe/Lisbon',
+  });
+
+  return `${dateFormatter.format(start)}, ${timeFormatter.format(start)} as ${timeFormatter.format(end)}`;
+}
+
 export async function sendAgendamentoEmail(params: {
   toEmail: string;
   toName: string;
@@ -239,7 +260,7 @@ export async function sendAgendamentoEmail(params: {
 
   const fromUser = import.meta.env.EMAIL_USER || process.env.EMAIL_USER;
   const transporter = getTransporter();
-  const horarioFmt = formatDateTimePt(horarioAgendado);
+  const horarioFmt = formatDateTimeRangePt(horarioAgendado);
   const local = [morada, bairro, cidade, codigoPostal].filter(Boolean).join(', ');
 
   const info = await transporter.sendMail({
@@ -306,7 +327,7 @@ export async function sendNovoAgendamentoInternoEmail(params: {
 
   const fromUser = import.meta.env.EMAIL_USER || process.env.EMAIL_USER;
   const transporter = getTransporter();
-  const horarioFmt = formatDateTimePt(horarioAgendado);
+  const horarioFmt = formatDateTimeRangePt(horarioAgendado);
   const local = [morada, bairro, cidade, codigoPostal].filter(Boolean).join(', ');
 
   return transporter.sendMail({
@@ -358,7 +379,7 @@ export async function sendNovoAgendamentoWhatsAppCallmebot(params: {
   const normalizedPhone = phone.replace(/[^\d]/g, '');
   if (!normalizedPhone) return;
 
-  const horarioFmt = formatDateTimePt(horarioAgendado);
+  const horarioFmt = formatDateTimeRangePt(horarioAgendado);
   const local = [morada, bairro, cidade, codigoPostal].filter(Boolean).join(', ');
   const msg =
     `Novo agendamento #${chamadoId}\n` +
