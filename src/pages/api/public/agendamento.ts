@@ -58,7 +58,7 @@ export const GET: APIRoute = async ({ url }) => {
       ),
       slots AS (
         SELECT (d + make_interval(hours => h))::timestamp AS slot_at
-        FROM days, generate_series(${SLOT_START_HOUR}, ${SLOT_END_HOUR - SLOT_DURATION_HOURS}, ${SLOT_DURATION_HOURS}) AS h
+        FROM days, generate_series(${SLOT_START_HOUR}::int, ${(SLOT_END_HOUR - SLOT_DURATION_HOURS)}::int, ${SLOT_DURATION_HOURS}::int) AS h
         WHERE extract(isodow from d) BETWEEN 1 AND 5
       )
       SELECT
