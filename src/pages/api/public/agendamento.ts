@@ -5,6 +5,10 @@ import { getBookingNotificationOptions } from '../../../lib/settings';
 
 export const prerender = false;
 
+const SLOT_START_HOUR = 8;
+const SLOT_END_HOUR = 20;
+const SLOT_DURATION_HOURS = 3;
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
@@ -27,7 +31,8 @@ function normalizeDateTime(value: string) {
   const hour = Number(m[4]);
   const minute = Number(m[5]);
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  if (hour < 9 || hour > 17) return null;
+  if (hour < SLOT_START_HOUR || hour > SLOT_END_HOUR - SLOT_DURATION_HOURS) return null;
+  if ((hour - SLOT_START_HOUR) % SLOT_DURATION_HOURS !== 0) return null;
   if (minute !== 0) return null;
   return v;
 }
@@ -53,23 +58,34 @@ export const GET: APIRoute = async ({ url }) => {
       ),
       slots AS (
         SELECT (d + make_interval(hours => h))::timestamp AS slot_at
-        FROM days, generate_series(9, 17) AS h
+        FROM days, generate_series(${SLOT_START_HOUR}, ${SLOT_END_HOUR - SLOT_DURATION_HOURS}, ${SLOT_DURATION_HOURS}) AS h
         WHERE extract(isodow from d) BETWEEN 1 AND 5
       )
-      SELECT to_char(s.slot_at, 'YYYY-MM-DD"T"HH24:MI') AS slot
+      SELECT
+        to_char(s.slot_at, 'YYYY-MM-DD"T"HH24:MI') AS slot,
+        to_char(s.slot_at + make_interval(hours => ${SLOT_DURATION_HOURS}), 'YYYY-MM-DD"T"HH24:MI') AS slot_end,
+        to_char(s.slot_at, 'HH24:MI') || ' as ' || to_char(s.slot_at + make_interval(hours => ${SLOT_DURATION_HOURS}), 'HH24:MI') AS slot_range
       FROM slots s
       WHERE NOT EXISTS (
         SELECT 1
         FROM chamados c
         WHERE c.status NOT IN ('concluido', 'cancelado')
-          AND c.horario_agendado < (s.slot_at + interval '2 hour')
-          AND (c.horario_agendado + interval '2 hour') > s.slot_at
+          AND c.horario_agendado < (s.slot_at + make_interval(hours => ${SLOT_DURATION_HOURS}))
+          AND (c.horario_agendado + make_interval(hours => ${SLOT_DURATION_HOURS})) > s.slot_at
       )
         AND s.slot_at >= (now() + interval '1 hour')
       ORDER BY s.slot_at ASC
     `;
 
-    return json({ slots: rows.map((r: any) => r.slot) });
+    return json({
+      slots: rows.map((r: any) => r.slot),
+      slotRanges: rows.map((r: any) => ({
+        value: r.slot,
+        start: r.slot,
+        end: r.slot_end,
+        label: r.slot_range,
+      })),
+    });
   } catch (error) {
     console.error('Public disponibilidade error:', error);
     return json({ ok: false, error: 'server' }, 500);
@@ -111,8 +127,8 @@ export const POST: APIRoute = async ({ request }) => {
     const [occupied] = await sql`
       SELECT id
       FROM chamados
-      WHERE horario_agendado < (${horario_agendado}::timestamp + interval '2 hour')
-        AND (horario_agendado + interval '2 hour') > ${horario_agendado}::timestamp
+      WHERE horario_agendado < (${horario_agendado}::timestamp + make_interval(hours => ${SLOT_DURATION_HOURS}))
+        AND (horario_agendado + make_interval(hours => ${SLOT_DURATION_HOURS})) > ${horario_agendado}::timestamp
         AND status NOT IN ('concluido', 'cancelado')
       LIMIT 1
     `;
