@@ -142,7 +142,7 @@ export const POST: APIRoute = async ({ request }) => {
       ) VALUES (
         ${nome}, ${telefone}, ${email}, ${morada}, ${bairro}, ${cidade}, ${codigo_postal}, ${descricao}, ${horario_agendado}, 'pendente'
       )
-      RETURNING id, horario_agendado, status, created_at
+      RETURNING id, to_char(horario_agendado, 'YYYY-MM-DD"T"HH24:MI') AS horario_agendado, status, created_at
     `;
 
     if (email) {

@@ -214,23 +214,30 @@ function formatDateTimePt(value?: string | null) {
 
 function formatDateTimeRangePt(value?: string | null, durationHours = 3) {
   if (!value) return '-';
-  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
-  const start = new Date(normalized);
-  if (Number.isNaN(start.getTime())) return value;
 
-  const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
-  const dateFormatter = new Intl.DateTimeFormat('pt-PT', {
-    dateStyle: 'full',
-    timeZone: 'Europe/Lisbon',
-  });
-  const timeFormatter = new Intl.DateTimeFormat('pt-PT', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Europe/Lisbon',
-  });
+  // horario_agendado is stored as TIMESTAMP WITHOUT TIME ZONE (Lisbon local time).
+  // Parse components directly to avoid server-timezone interference from new Date().
+  const str = String(value).trim();
+  const withT = str.includes('T') ? str : str.replace(' ', 'T');
+  const m = withT.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
 
-  return `${dateFormatter.format(start)}, ${timeFormatter.format(start)} as ${timeFormatter.format(end)}`;
+  if (!m) {
+    // Fallback for unexpected formats
+    const start = new Date(str);
+    if (Number.isNaN(start.getTime())) return str;
+    const end = new Date(start.getTime() + durationHours * 3600000);
+    const dtFmt = new Intl.DateTimeFormat('pt-PT', { dateStyle: 'full', timeZone: 'Europe/Lisbon' });
+    const tFmt = new Intl.DateTimeFormat('pt-PT', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Europe/Lisbon' });
+    return `${dtFmt.format(start)}, ${tFmt.format(start)} as ${tFmt.format(end)}`;
+  }
+
+  const year = +m[1], month = +m[2] - 1, day = +m[3], hour = +m[4], minute = +m[5];
+  // Use UTC noon for the date label to avoid DST midnight edge cases
+  const dateObj = new Date(Date.UTC(year, month, day, 12, 0, 0));
+  const dateFmt = new Intl.DateTimeFormat('pt-PT', { dateStyle: 'full', timeZone: 'UTC' });
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  return `${dateFmt.format(dateObj)}, ${pad(hour)}:${pad(minute)} as ${pad(hour + durationHours)}:${pad(minute)}`;
 }
 
 export async function sendAgendamentoEmail(params: {
