@@ -76,7 +76,7 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
       `;
     }
 
-    return redirect(`/orcamentos/${orc.id}?success=created`);
+    return redirect(`/orcamentos/${orc.id}/editar?success=created`);
   } catch (err) {
     console.error('Criar orcamento direto error:', err);
     return redirect('/orcamentos/novo?error=server');

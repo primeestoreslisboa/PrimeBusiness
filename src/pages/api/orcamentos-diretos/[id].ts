@@ -35,10 +35,13 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
 
     // ---------- EDITAR ----------
     if (action === 'update') {
-      if (isLocked(orc.status)) return redirect(`/orcamentos/${id}?error=locked`);
+      if (isLocked(orc.status)) return redirect(`/orcamentos?error=locked`);
 
       const cliente_nome = (form.get('cliente_nome')?.toString() || '').trim();
-      if (!cliente_nome) return redirect(`/orcamentos/${id}?error=validation`);
+      if (!cliente_nome) return redirect(`/orcamentos/${id}/editar?error=validation`);
+
+      const statusRaw = form.get('status')?.toString() || orc.status;
+      const status = ['rascunho', 'enviado', 'aprovado', 'rejeitado'].includes(statusRaw) ? statusRaw : orc.status;
 
       const cliente_nif = form.get('cliente_nif')?.toString().trim() || null;
       const cliente_morada = form.get('cliente_morada')?.toString().trim() || null;
@@ -63,7 +66,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
           cliente_telefone=${cliente_telefone}, cliente_email=${cliente_email},
           validade_dias=${validade_dias}, observacoes=${observacoes},
           include_iva=${includeIva}, iva_rate=${ivaRate}, subtotal=${subtotal}, total=${total},
-          updated_at=NOW()
+          status=${status}, updated_at=NOW()
         WHERE id=${id}
       `;
       await sql`DELETE FROM orcamento_direto_itens WHERE orcamento_id=${id}`;
@@ -73,13 +76,13 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
           VALUES (${id}, ${it.descricao}, ${it.quantidade}, ${it.preco_unitario}, ${it.ordem})
         `;
       }
-      return redirect(`/orcamentos/${id}?success=updated`);
+      return redirect(`/orcamentos/${id}/editar?success=updated`);
     }
 
     // ---------- ENVIAR EMAIL (PDF anexado) ----------
     if (action === 'send_email') {
       const targetEmail = form.get('to_email')?.toString().trim() || orc.cliente_email || '';
-      if (!targetEmail) return redirect(`/orcamentos/${id}?error=no_email`);
+      if (!targetEmail) return redirect(`/orcamentos?error=no_email`);
 
       const baseUrl = getBaseUrl(request);
       const company = await getCompanyInfo();
@@ -104,17 +107,17 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
               enviado_via='email', enviado_at=NOW(), updated_at=NOW()
           WHERE id=${id}
         `;
-        return redirect(`/orcamentos/${id}?success=email_sent`);
+        return redirect(`/orcamentos?success=email_sent`);
       } catch (e: any) {
         console.error('Orcamento email error:', e?.message ?? e);
-        return redirect(`/orcamentos/${id}?error=email_failed&msg=${encodeURIComponent(e?.message ?? 'unknown')}`);
+        return redirect(`/orcamentos?error=email_failed&msg=${encodeURIComponent(e?.message ?? 'unknown')}`);
       }
     }
 
     // ---------- ENVIAR WHATSAPP (texto + link público) ----------
     if (action === 'send_whatsapp') {
       const targetPhone = form.get('to_phone')?.toString().trim() || orc.cliente_telefone || '';
-      if (!targetPhone) return redirect(`/orcamentos/${id}?error=no_phone`);
+      if (!targetPhone) return redirect(`/orcamentos?error=no_phone`);
 
       const baseUrl = getBaseUrl(request);
       const company = await getCompanyInfo();
@@ -136,27 +139,18 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       return redirect(whatsappUrl);
     }
 
-    // ---------- DEFINIR ESTADO MANUALMENTE ----------
-    if (action === 'set_status') {
-      const novo = form.get('status')?.toString();
-      if (novo && ['rascunho', 'enviado', 'aprovado', 'rejeitado'].includes(novo)) {
-        await sql`UPDATE orcamentos_diretos SET status=${novo}, updated_at=NOW() WHERE id=${id}`;
-      }
-      return redirect(`/orcamentos/${id}?success=status`);
-    }
-
     // ---------- CRIAR AGENDAMENTO (gera chamado) ----------
     if (action === 'criar_agendamento') {
       if (orc.chamado_id) return redirect(`/chamados/${orc.chamado_id}`);
 
       const horario = form.get('horario_agendado')?.toString().trim() || '';
-      if (!horario) return redirect(`/orcamentos/${id}?error=no_horario`);
+      if (!horario) return redirect(`/orcamentos?error=no_horario`);
 
       const telefone = orc.cliente_telefone || form.get('cliente_telefone')?.toString().trim() || '';
       const morada = orc.cliente_morada || form.get('cliente_morada')?.toString().trim() || '';
       const cidade = orc.cliente_localidade || form.get('cliente_localidade')?.toString().trim() || '';
       if (!telefone || !morada || !cidade) {
-        return redirect(`/orcamentos/${id}?error=agendamento_incompleto`);
+        return redirect(`/orcamentos?error=agendamento_incompleto`);
       }
 
       const { itens } = (await loadOrcamento(sql, id!))!;
@@ -178,9 +172,9 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       return redirect(`/chamados/${chamado.id}?success=agendamento_criado`);
     }
 
-    return redirect(`/orcamentos/${id}`);
+    return redirect(`/orcamentos`);
   } catch (err) {
     console.error('Orcamento direto action error:', err);
-    return redirect(`/orcamentos/${id}?error=server`);
+    return redirect(`/orcamentos?error=server`);
   }
 };

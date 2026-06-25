@@ -1,0 +1,47 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import OrcamentoForm from '../../../components/OrcamentoForm.astro';
+import { getDb } from '../../../lib/db';
+import { getIvaRate } from '../../../lib/settings';
+import { loadOrcamento, isLocked } from '../../../lib/orcamentos';
+
+const user = Astro.locals.user;
+const sql = getDb();
+const { id } = Astro.params;
+
+const loaded = await loadOrcamento(sql, id!);
+if (!loaded) return Astro.redirect('/orcamentos?error=not_found');
+const { orc, itens } = loaded;
+
+// Orçamentos fechados não são editáveis.
+if (isLocked(orc.status)) return Astro.redirect(`/orcamentos?error=locked`);
+
+const ivaRate = await getIvaRate(23);
+const error = Astro.url.searchParams.get('error');
+const success = Astro.url.searchParams.get('success');
+---
+<Layout title={`Editar ${orc.numero ?? `#${orc.id}`}`} user={user}>
+  <div class="py-6 pb-24">
+    <div class="flex items-center gap-3 mb-6">
+      <a href="/orcamentos" class="text-gray-400 hover:text-gray-600">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </a>
+      <div class="flex-1 min-w-0">
+        <h1 class="text-2xl font-bold text-gray-800 truncate">{orc.numero ?? `Orçamento #${orc.id}`}</h1>
+        <p class="text-xs text-gray-400 truncate">{orc.cliente_nome}</p>
+      </div>
+      <a href={`/api/orcamentos-diretos/${orc.id}/pdf`} target="_blank" rel="noopener"
+         class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold bg-gray-800 hover:bg-gray-900 text-white transition whitespace-nowrap">
+        📄 PDF
+      </a>
+    </div>
+
+    {success === 'updated' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">✅ Orçamento atualizado.</div>}
+    {success === 'created' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">✅ Orçamento criado. Pode agora enviá-lo a partir da lista.</div>}
+    {error && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">❌ {error === 'validation' ? 'Preencha o nome do cliente.' : 'Ocorreu um erro ao guardar.'}</div>}
+
+    <OrcamentoForm action={`/api/orcamentos-diretos/${orc.id}`} actionName="update" submitLabel="Guardar Alterações" ivaRate={ivaRate} orc={orc} itens={itens} />
+  </div>
+</Layout>
