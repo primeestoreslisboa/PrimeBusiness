@@ -53,15 +53,25 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
     const token = genToken();
     const createdBy = (locals.user as any)?.userId ?? null;
 
+    // Associação opcional a um chamado em aberto (criação a partir da página do chamado).
+    let chamadoId: number | null = null;
+    const chamadoIdRaw = form.get('chamado_id')?.toString().trim();
+    if (chamadoIdRaw) {
+      const [chamado] = await sql`SELECT id, status FROM chamados WHERE id = ${chamadoIdRaw} LIMIT 1`;
+      if (chamado && (chamado.status === 'pendente' || chamado.status === 'em_andamento')) {
+        chamadoId = chamado.id;
+      }
+    }
+
     const [orc] = await sql`
       INSERT INTO orcamentos_diretos (
         cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade,
         cliente_telefone, cliente_email, validade_dias, observacoes,
-        include_iva, iva_rate, subtotal, total, status, public_token, created_by
+        include_iva, iva_rate, subtotal, total, status, public_token, created_by, chamado_id
       ) VALUES (
         ${cliente_nome}, ${cliente_nif}, ${cliente_morada}, ${cliente_codigo_postal}, ${cliente_localidade},
         ${cliente_telefone}, ${cliente_email}, ${validade_dias}, ${observacoes},
-        ${includeIva}, ${ivaRate}, ${subtotal}, ${total}, 'rascunho', ${token}, ${createdBy}
+        ${includeIva}, ${ivaRate}, ${subtotal}, ${total}, 'rascunho', ${token}, ${createdBy}, ${chamadoId}
       )
       RETURNING id, created_at
     `;
@@ -76,6 +86,9 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
       `;
     }
 
+    if (chamadoId) {
+      return redirect(`/chamados/${chamadoId}?success=orcamento_associado`);
+    }
     return redirect(`/orcamentos/${orc.id}/editar?success=created`);
   } catch (err) {
     console.error('Criar orcamento direto error:', err);

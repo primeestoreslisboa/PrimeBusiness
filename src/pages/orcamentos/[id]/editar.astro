@@ -19,6 +19,22 @@ if (isLocked(orc.status)) return Astro.redirect(`/orcamentos?error=locked`);
 const ivaRate = await getIvaRate(23);
 const error = Astro.url.searchParams.get('error');
 const success = Astro.url.searchParams.get('success');
+
+let chamadosAbertos = await sql`
+  SELECT id, nome, telefone, email, morada, codigo_postal, cidade, horario_agendado
+  FROM chamados
+  WHERE status IN ('pendente', 'em_andamento')
+  ORDER BY horario_agendado DESC
+  LIMIT 100
+`;
+// Garante que o chamado já associado aparece na lista, mesmo que já não esteja em aberto.
+if (orc.chamado_id && !chamadosAbertos.some((c: any) => String(c.id) === String(orc.chamado_id))) {
+  const [assoc] = await sql`
+    SELECT id, nome, telefone, email, morada, codigo_postal, cidade, horario_agendado
+    FROM chamados WHERE id = ${orc.chamado_id} LIMIT 1
+  `;
+  if (assoc) chamadosAbertos = [assoc, ...chamadosAbertos];
+}
 ---
 <Layout title={`Editar ${orc.numero ?? `#${orc.id}`}`} user={user}>
   <div class="py-6 pb-24">
@@ -42,6 +58,6 @@ const success = Astro.url.searchParams.get('success');
     {success === 'created' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">✅ Orçamento criado. Pode agora enviá-lo a partir da lista.</div>}
     {error && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">❌ {error === 'validation' ? 'Preencha o nome do cliente.' : 'Ocorreu um erro ao guardar.'}</div>}
 
-    <OrcamentoForm action={`/api/orcamentos-diretos/${orc.id}`} actionName="update" submitLabel="Guardar Alterações" ivaRate={ivaRate} orc={orc} itens={itens} />
+    <OrcamentoForm action={`/api/orcamentos-diretos/${orc.id}`} actionName="update" submitLabel="Guardar Alterações" ivaRate={ivaRate} orc={orc} itens={itens} chamadosAbertos={chamadosAbertos} />
   </div>
 </Layout>

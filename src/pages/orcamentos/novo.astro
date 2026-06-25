@@ -1,11 +1,31 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import OrcamentoForm from '../../components/OrcamentoForm.astro';
+import { getDb } from '../../lib/db';
 import { getIvaRate } from '../../lib/settings';
 
 const user = Astro.locals.user;
+const sql = getDb();
 const error = Astro.url.searchParams.get('error');
 const ivaRate = await getIvaRate(23);
+const chamadosAbertos = await sql`
+  SELECT id, nome, telefone, email, morada, codigo_postal, cidade, horario_agendado
+  FROM chamados
+  WHERE status IN ('pendente', 'em_andamento')
+  ORDER BY horario_agendado DESC
+  LIMIT 100
+`;
+
+const params = Astro.url.searchParams;
+const chamadoId = params.get('chamado_id');
+const prefill = {
+  cliente_nome: params.get('cliente_nome') ?? '',
+  cliente_telefone: params.get('cliente_telefone') ?? '',
+  cliente_email: params.get('cliente_email') ?? '',
+  cliente_morada: params.get('cliente_morada') ?? '',
+  cliente_codigo_postal: params.get('cliente_codigo_postal') ?? '',
+  cliente_localidade: params.get('cliente_localidade') ?? '',
+};
 ---
 <Layout title="Novo Orçamento" user={user}>
   <div class="py-6 pb-24">
@@ -20,6 +40,6 @@ const ivaRate = await getIvaRate(23);
 
     {error && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">❌ {error === 'validation' ? 'Preencha o nome do cliente.' : 'Ocorreu um erro ao criar o orçamento.'}</div>}
 
-    <OrcamentoForm action="/api/orcamentos-diretos" submitLabel="Criar Orçamento" ivaRate={ivaRate} />
+    <OrcamentoForm action="/api/orcamentos-diretos" submitLabel="Criar Orçamento" ivaRate={ivaRate} prefill={prefill} chamadoId={chamadoId} chamadosAbertos={chamadosAbertos} />
   </div>
 </Layout>

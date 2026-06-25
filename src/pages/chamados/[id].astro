@@ -33,6 +33,19 @@ const orcDiretoStatus: Record<string, { label: string; cls: string }> = {
 };
 const eurFmt = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const intervaloHoras = await getAgendamentoIntervaloHoras(3);
+
+// Link para criar orçamento já com os dados do cliente pré-preenchidos e associado a este chamado.
+const novoOrcamentoUrl = (() => {
+  const p = new URLSearchParams();
+  p.set('chamado_id', String(chamado.id));
+  p.set('cliente_nome', chamado.nome ?? '');
+  p.set('cliente_telefone', chamado.telefone ?? '');
+  p.set('cliente_email', chamado.email ?? '');
+  p.set('cliente_morada', chamado.morada ?? '');
+  p.set('cliente_codigo_postal', chamado.codigo_postal ?? '');
+  p.set('cliente_localidade', chamado.cidade ?? '');
+  return `/orcamentos/novo?${p.toString()}`;
+})();
 const chamadoServicos = await sql`
   SELECT cs.*, s.nome as servico_nome
   FROM chamado_servicos cs
@@ -396,7 +409,7 @@ function getMbWayStatusLabel(status?: string) {
           Orcamentos
           {orcamentos.length > 0 && <span class="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full font-medium">{orcamentos.length}</span>}
         </h2>
-        <a href="/orcamentos/novo" class="text-xs text-green-600 font-medium hover:underline">+ Novo orçamento</a>
+        <a href={novoOrcamentoUrl} class="text-xs text-green-600 font-medium hover:underline">+ Novo orçamento</a>
       </div>
 
       {orcamentosDiretos.length > 0 && (
@@ -438,7 +451,7 @@ function getMbWayStatusLabel(status?: string) {
       {orcamentos.length === 0 && orcamentosDiretos.length === 0 ? (
         <div class="px-4 py-8 text-center text-gray-400">
           <p class="text-sm">Nenhum orcamento gerado ainda</p>
-          <a href="/orcamentos/novo" class="mt-2 inline-block text-green-600 text-sm">Criar orçamento</a>
+          <a href={novoOrcamentoUrl} class="mt-2 inline-block text-green-600 text-sm">Criar orçamento</a>
         </div>
       ) : (
         <div class="divide-y divide-gray-100">

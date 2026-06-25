@@ -29,7 +29,7 @@ function parseComponents(value: string | Date) {
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** "09:00 às 12:00" (início + intervalo de horas). */
-export function timeRangeLabel(value: string | null | undefined, intervaloHoras = 3): string {
+export function timeRangeLabel(value: string | Date | null | undefined, intervaloHoras = 3): string {
   if (!value) return '-';
   const c = parseComponents(value);
   if (!c) return String(value);
@@ -38,7 +38,7 @@ export function timeRangeLabel(value: string | null | undefined, intervaloHoras 
 }
 
 /** "Quarta-feira, 25/06/2026, 09:00 às 12:00". */
-export function dateTimeRangeLabel(value: string | null | undefined, intervaloHoras = 3): string {
+export function dateTimeRangeLabel(value: string | Date | null | undefined, intervaloHoras = 3): string {
   if (!value) return '-';
   const c = parseComponents(value);
   if (!c) return String(value);

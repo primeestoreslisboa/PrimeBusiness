@@ -43,6 +43,14 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       const statusRaw = form.get('status')?.toString() || orc.status;
       const status = ['rascunho', 'enviado', 'aprovado', 'rejeitado'].includes(statusRaw) ? statusRaw : orc.status;
 
+      // Associação a chamado (vinda do dropdown do formulário).
+      let chamadoId: number | null = null;
+      const chamadoIdRaw = form.get('chamado_id')?.toString().trim();
+      if (chamadoIdRaw) {
+        const [ch] = await sql`SELECT id FROM chamados WHERE id = ${chamadoIdRaw} LIMIT 1`;
+        if (ch) chamadoId = ch.id;
+      }
+
       const cliente_nif = form.get('cliente_nif')?.toString().trim() || null;
       const cliente_morada = form.get('cliente_morada')?.toString().trim() || null;
       const cliente_codigo_postal = form.get('cliente_codigo_postal')?.toString().trim() || null;
@@ -66,7 +74,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
           cliente_telefone=${cliente_telefone}, cliente_email=${cliente_email},
           validade_dias=${validade_dias}, observacoes=${observacoes},
           include_iva=${includeIva}, iva_rate=${ivaRate}, subtotal=${subtotal}, total=${total},
-          status=${status}, updated_at=NOW()
+          status=${status}, chamado_id=${chamadoId}, updated_at=NOW()
         WHERE id=${id}
       `;
       await sql`DELETE FROM orcamento_direto_itens WHERE orcamento_id=${id}`;
