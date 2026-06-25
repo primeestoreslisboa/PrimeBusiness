@@ -1,9 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { getDb } from '../lib/db';
+import { getAgendamentoIntervaloHoras } from '../lib/settings';
+import { timeRangeLabel } from '../lib/horario';
 
 const user = Astro.locals.user;
 const sql  = getDb();
+const intervaloHoras = await getAgendamentoIntervaloHoras(3);
 
 const dateParam = Astro.url.searchParams.get('date');
 const selDate   = dateParam ? new Date(dateParam + 'T12:00:00') : new Date();
@@ -77,14 +80,13 @@ const timelineRows = Array.from({ length: 14 }, (_, i) => {
   const evs = chamadosDiaConsumidos
     .filter((c: any) => {
       const startHour = new Date(c.horario_agendado).getHours();
-      if (c.status === 'pendente') return hour === startHour;
-      return hour >= startHour;
+      return hour >= startHour && hour < startHour + intervaloHoras;
     })
     .map((c: any) => {
       const startHour = new Date(c.horario_agendado).getHours();
       return {
         ...c,
-        isContinuation: c.status !== 'pendente' && hour > startHour,
+        isContinuation: hour > startHour,
       };
     });
   const isPastEmpty = slotAt < today && evs.length === 0;
@@ -191,7 +193,7 @@ const dayLink = (d: number) => `?date=${selYear}-${String(selMonth+1).padStart(2
         <div class="divide-y divide-gray-50">
           {chamadosDia.map((c: any) => (
             <a href={`/chamados/${c.id}`} class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition">
-              <div class="min-w-[48px] text-sm font-bold text-red-700">{fmt(c.horario_agendado)}</div>
+              <div class="min-w-[92px] text-xs font-bold text-red-700 leading-tight pt-0.5">{timeRangeLabel(c.horario_agendado, intervaloHoras)}</div>
               <div class="flex-1 min-w-0">
                 <p class="font-medium text-gray-800 truncate">{c.nome}</p>
                 <p class="text-xs text-gray-500 truncate">{c.cidade} - {c.descricao.substring(0,50)}{c.descricao.length>50?'...':''}</p>
@@ -216,7 +218,7 @@ const dayLink = (d: number) => `?date=${selYear}-${String(selMonth+1).padStart(2
                   <a href={`/chamados/${c.id}`}
                      class={`block mb-1 text-white text-xs px-2 py-1 rounded truncate hover:opacity-90 transition
                        ${c.status==='concluido'?'bg-green-500':c.status==='cancelado'?'bg-red-500':c.status==='em_andamento'?'bg-blue-500':'bg-yellow-500'}`}>
-                    {c.isContinuation ? `Em curso - ${c.nome}` : `${fmt(c.horario_agendado)} - ${c.nome}`}
+                    {c.isContinuation ? `Em curso - ${c.nome}` : `${timeRangeLabel(c.horario_agendado, intervaloHoras)} - ${c.nome}`}
                   </a>
                 ))}
               </div>

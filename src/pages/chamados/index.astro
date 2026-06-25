@@ -1,10 +1,12 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getDb } from '../../lib/db';
-import { getIvaRate } from '../../lib/settings';
+import { getIvaRate, getAgendamentoIntervaloHoras } from '../../lib/settings';
+import { timeRangeLabel } from '../../lib/horario';
 
 const user = Astro.locals.user;
 const sql = getDb();
+const intervaloHoras = await getAgendamentoIntervaloHoras(3);
 
 const status = Astro.url.searchParams.get('status') || '';
 const search = Astro.url.searchParams.get('q') || '';
@@ -181,6 +183,14 @@ function formatDateTime(dateStr: string) {
   });
 }
 
+function formatDateShort(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('pt-PT', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'Europe/Lisbon',
+  });
+}
+
 function getOrcamentoLabel(status?: string) {
   if (!status) return 'Sem orcamento';
   if (status === 'pendente') return 'Pendente';
@@ -327,7 +337,8 @@ function buildDuplicateUrl(chamado: any) {
                     )}
                   </div>
                   <div class="absolute top-3 right-3 text-right">
-                    <p class="text-xs font-medium text-red-700">{formatDateTime(c.horario_agendado)}</p>
+                    <p class="text-xs font-medium text-red-700">{formatDateShort(c.horario_agendado)}</p>
+                    <p class="text-[11px] text-red-600">{timeRangeLabel(c.horario_agendado, intervaloHoras)}</p>
                     {c.tecnico_nome && <p class="text-xs text-gray-400 mt-1">{c.tecnico_nome}</p>}
                   </div>
                 </div>

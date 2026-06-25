@@ -1,7 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getDb } from '../../lib/db';
+import SlotPicker from '../../components/SlotPicker.astro';
 import { num } from '../../lib/orcamentos';
+import { getAgendamentoIntervaloHoras } from '../../lib/settings';
 
 const user = Astro.locals.user;
 const sql = getDb();
@@ -17,6 +19,7 @@ const chamadosAbertos = await sql`
   ORDER BY horario_agendado DESC
   LIMIT 100
 `;
+const intervaloHoras = await getAgendamentoIntervaloHoras(3);
 const fmtChamado = (c: any) => {
   const dt = new Date(c.horario_agendado).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon' });
   return `#${c.id} · ${c.nome}${c.cidade ? ` (${c.cidade})` : ''} · ${dt}`;
@@ -228,9 +231,8 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
           </div>
           <div data-novo-agendamento>
             <label class="block text-sm font-medium text-gray-700 mb-1">Data e hora da visita</label>
-            <input type="datetime-local" name="horario_agendado" data-horario-input
-                   class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none" />
-            <p class="text-xs text-gray-400 mt-1">Gera um chamado com os dados do cliente. Necessário telefone, morada e localidade.</p>
+            <SlotPicker name="horario_agendado" intervaloHoras={intervaloHoras} minToday={true} />
+            <p class="text-xs text-gray-400 mt-1">Gera um chamado com os dados do cliente. Necessário telefone, morada e localidade. O cliente é atendido numa janela de {intervaloHoras} horas a partir da hora escolhida.</p>
           </div>
           <div class="grid grid-cols-2 gap-2 pt-1">
             <button type="button" class="modal-close py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50">Cancelar</button>
@@ -278,13 +280,13 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
     const agSelect = document.querySelector('[data-chamado-select]') as HTMLSelectElement | null;
     const agActionInput = document.querySelector('[data-action-input]') as HTMLInputElement | null;
     const agNovoBlock = document.querySelector('[data-novo-agendamento]') as HTMLElement | null;
-    const agHorario = document.querySelector('[data-horario-input]') as HTMLInputElement | null;
     const agSubmit = document.querySelector('[data-agendar-submit]') as HTMLElement | null;
+    const agSlotFields = agNovoBlock ? agNovoBlock.querySelectorAll('.sp-date, .sp-slot') : [];
     function syncAgendar() {
       const existing = !!(agSelect && agSelect.value);
       if (agActionInput) agActionInput.value = existing ? 'associar_agendamento' : 'criar_agendamento';
       if (agNovoBlock) agNovoBlock.style.display = existing ? 'none' : '';
-      if (agHorario) agHorario.required = !existing;
+      agSlotFields.forEach(el => { (el as HTMLInputElement | HTMLSelectElement).required = !existing; });
       if (agSubmit) agSubmit.textContent = existing ? 'Associar agendamento' : 'Criar agendamento';
     }
     agSelect?.addEventListener('change', syncAgendar);

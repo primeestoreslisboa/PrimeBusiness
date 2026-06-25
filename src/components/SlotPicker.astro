@@ -1,0 +1,76 @@
+---
+// Seletor de horário por slots de intervalo fixo (ex: 3h) entre 8h e 20h.
+// Renderiza: data + dropdown de slot + input hidden com o valor combinado
+// (YYYY-MM-DDTHH:mm) no campo `name` (default horario_agendado).
+export interface Props {
+  name?: string;
+  hiddenId?: string;
+  value?: string | null;
+  intervaloHoras?: number;
+  required?: boolean;
+  disabled?: boolean;
+  minToday?: boolean;
+}
+const {
+  name = 'horario_agendado',
+  hiddenId,
+  value = '',
+  intervaloHoras = 3,
+  required = false,
+  disabled = false,
+  minToday = false,
+} = Astro.props;
+
+const START_HOUR = 8;
+const END_HOUR = 20;
+const pad = (n: number) => String(n).padStart(2, '0');
+
+const slots: { value: string; label: string }[] = [];
+for (let h = START_HOUR; h + intervaloHoras <= END_HOUR; h += intervaloHoras) {
+  slots.push({ value: `${pad(h)}:00`, label: `${pad(h)}:00 às ${pad(h + intervaloHoras)}:00` });
+}
+
+const initial = value ? String(value).replace(' ', 'T') : '';
+const initialDate = initial.slice(0, 10);
+const initialSlot = initial.slice(11, 16);
+// Se o horário existente não corresponder a um slot, mantém-no como opção extra.
+const hasInitialSlot = initialSlot && slots.some(s => s.value === initialSlot);
+const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none bg-white disabled:bg-gray-100 disabled:text-gray-500';
+---
+<div class="slotpicker grid grid-cols-2 gap-2" data-slotpicker>
+  <input
+    type="date"
+    class={`sp-date ${inputCls}`}
+    value={initialDate}
+    min={minToday ? new Date().toISOString().slice(0, 10) : undefined}
+    required={required}
+    disabled={disabled}
+  />
+  <select class={`sp-slot ${inputCls}`} required={required} disabled={disabled}>
+    <option value="">Horário...</option>
+    {!hasInitialSlot && initialSlot && (
+      <option value={initialSlot} selected>{initialSlot}</option>
+    )}
+    {slots.map(s => (
+      <option value={s.value} selected={hasInitialSlot && s.value === initialSlot}>{s.label}</option>
+    ))}
+  </select>
+  <input type="hidden" name={name} id={hiddenId} data-intervalo={intervaloHoras} value={initial} />
+</div>
+
+<script>
+  function wireSlotPicker(group: Element) {
+    const date = group.querySelector('.sp-date') as HTMLInputElement | null;
+    const slot = group.querySelector('.sp-slot') as HTMLSelectElement | null;
+    const hidden = group.querySelector('input[type="hidden"]') as HTMLInputElement | null;
+    if (!date || !slot || !hidden) return;
+    const combine = () => {
+      hidden.value = date.value && slot.value ? `${date.value}T${slot.value}` : '';
+      hidden.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    date.addEventListener('change', combine);
+    date.addEventListener('input', combine);
+    slot.addEventListener('change', combine);
+  }
+  document.querySelectorAll('[data-slotpicker]').forEach(wireSlotPicker);
+</script>

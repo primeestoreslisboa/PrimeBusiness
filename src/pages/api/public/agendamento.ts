@@ -1,13 +1,12 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
 import { sendAgendamentoEmail, sendNovoAgendamentoInternoEmail, sendNovoAgendamentoWhatsAppCallmebot } from '../../../lib/email';
-import { getBookingNotificationOptions } from '../../../lib/settings';
+import { getBookingNotificationOptions, getAgendamentoIntervaloHoras } from '../../../lib/settings';
 
 export const prerender = false;
 
 const SLOT_START_HOUR = 8;
 const SLOT_END_HOUR = 20;
-const SLOT_DURATION_HOURS = 3;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -22,7 +21,7 @@ function json(data: any, status = 200) {
   });
 }
 
-function normalizeDateTime(value: string) {
+function normalizeDateTime(value: string, slotDurationHours: number) {
   const v = value.trim().slice(0, 16);
   const m = v.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
   if (!m) return null;
@@ -31,8 +30,8 @@ function normalizeDateTime(value: string) {
   const hour = Number(m[4]);
   const minute = Number(m[5]);
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  if (hour < SLOT_START_HOUR || hour > SLOT_END_HOUR - SLOT_DURATION_HOURS) return null;
-  if ((hour - SLOT_START_HOUR) % SLOT_DURATION_HOURS !== 0) return null;
+  if (hour < SLOT_START_HOUR || hour > SLOT_END_HOUR - slotDurationHours) return null;
+  if ((hour - SLOT_START_HOUR) % slotDurationHours !== 0) return null;
   if (minute !== 0) return null;
   return v;
 }
@@ -51,6 +50,7 @@ export const GET: APIRoute = async ({ url }) => {
   try {
     const days = Math.min(Math.max(parseInt(url.searchParams.get('days') || '14', 10), 1), 30);
     const sql = getDb();
+    const slotDuration = await getAgendamentoIntervaloHoras(3);
 
     const rows = await sql`
       WITH days AS (
@@ -58,20 +58,20 @@ export const GET: APIRoute = async ({ url }) => {
       ),
       slots AS (
         SELECT (d + make_interval(hours => h))::timestamp AS slot_at
-        FROM days, generate_series(${SLOT_START_HOUR}::int, ${(SLOT_END_HOUR - SLOT_DURATION_HOURS)}::int, ${SLOT_DURATION_HOURS}::int) AS h
+        FROM days, generate_series(${SLOT_START_HOUR}::int, ${(SLOT_END_HOUR - slotDuration)}::int, ${slotDuration}::int) AS h
         WHERE extract(isodow from d) BETWEEN 1 AND 5
       )
       SELECT
         to_char(s.slot_at, 'YYYY-MM-DD"T"HH24:MI') AS slot,
-        to_char(s.slot_at + make_interval(hours => ${SLOT_DURATION_HOURS}), 'YYYY-MM-DD"T"HH24:MI') AS slot_end,
-        to_char(s.slot_at, 'HH24:MI') || ' as ' || to_char(s.slot_at + make_interval(hours => ${SLOT_DURATION_HOURS}), 'HH24:MI') AS slot_range
+        to_char(s.slot_at + make_interval(hours => ${slotDuration}), 'YYYY-MM-DD"T"HH24:MI') AS slot_end,
+        to_char(s.slot_at, 'HH24:MI') || ' as ' || to_char(s.slot_at + make_interval(hours => ${slotDuration}), 'HH24:MI') AS slot_range
       FROM slots s
       WHERE NOT EXISTS (
         SELECT 1
         FROM chamados c
         WHERE c.status NOT IN ('concluido', 'cancelado')
-          AND c.horario_agendado < (s.slot_at + make_interval(hours => ${SLOT_DURATION_HOURS}))
-          AND (c.horario_agendado + make_interval(hours => ${SLOT_DURATION_HOURS})) > s.slot_at
+          AND c.horario_agendado < (s.slot_at + make_interval(hours => ${slotDuration}))
+          AND (c.horario_agendado + make_interval(hours => ${slotDuration})) > s.slot_at
       )
         AND s.slot_at >= (now() + interval '1 hour')
       ORDER BY s.slot_at ASC
@@ -109,8 +109,9 @@ export const POST: APIRoute = async ({ request }) => {
     const emailRaw = `${payload.email || ''}`.trim();
     const email = emailRaw || null;
     const descricao = `${payload.descricao || ''}`.trim();
+    const slotDuration = await getAgendamentoIntervaloHoras(3);
     const horarioAgendadoRaw = `${payload.horario_agendado || ''}`;
-    const horario_agendado = normalizeDateTime(horarioAgendadoRaw);
+    const horario_agendado = normalizeDateTime(horarioAgendadoRaw, slotDuration);
 
     const morada = `${payload.morada || 'A confirmar'}`.trim() || 'A confirmar';
     const bairroRaw = `${payload.bairro || ''}`.trim();
@@ -127,8 +128,8 @@ export const POST: APIRoute = async ({ request }) => {
     const [occupied] = await sql`
       SELECT id
       FROM chamados
-      WHERE horario_agendado < (${horario_agendado}::timestamp + make_interval(hours => ${SLOT_DURATION_HOURS}))
-        AND (horario_agendado + make_interval(hours => ${SLOT_DURATION_HOURS})) > ${horario_agendado}::timestamp
+      WHERE horario_agendado < (${horario_agendado}::timestamp + make_interval(hours => ${slotDuration}))
+        AND (horario_agendado + make_interval(hours => ${slotDuration})) > ${horario_agendado}::timestamp
         AND status NOT IN ('concluido', 'cancelado')
       LIMIT 1
     `;
@@ -157,6 +158,7 @@ export const POST: APIRoute = async ({ request }) => {
           cidade,
           codigoPostal: codigo_postal,
           descricao,
+          intervaloHoras: slotDuration,
         });
       } catch (mailError) {
         console.error('Public agendamento email error:', mailError);
@@ -181,6 +183,7 @@ export const POST: APIRoute = async ({ request }) => {
               cidade,
               codigoPostal: codigo_postal,
               descricao,
+              intervaloHoras: slotDuration,
             })
           )
         );
@@ -201,6 +204,7 @@ export const POST: APIRoute = async ({ request }) => {
               cidade,
               codigoPostal: codigo_postal,
               descricao,
+              intervaloHoras: slotDuration,
             })
           )
         );

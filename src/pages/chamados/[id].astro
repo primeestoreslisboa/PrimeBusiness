@@ -1,7 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import SlotPicker from '../../components/SlotPicker.astro';
 import { getDb } from '../../lib/db';
-import { getIvaRate, getPaymentOptions, getSettingBool } from '../../lib/settings';
+import { getIvaRate, getPaymentOptions, getSettingBool, getAgendamentoIntervaloHoras } from '../../lib/settings';
+import { timeRangeLabel } from '../../lib/horario';
 
 const user = Astro.locals.user;
 const { id } = Astro.params;
@@ -30,6 +32,7 @@ const orcDiretoStatus: Record<string, { label: string; cls: string }> = {
   rejeitado: { label: 'Rejeitado', cls: 'bg-red-100 text-red-700' },
 };
 const eurFmt = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+const intervaloHoras = await getAgendamentoIntervaloHoras(3);
 const chamadoServicos = await sql`
   SELECT cs.*, s.nome as servico_nome
   FROM chamado_servicos cs
@@ -176,7 +179,7 @@ function getMbWayStatusLabel(status?: string) {
     {error === 'locked' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Este chamado esta concluido ou cancelado e nao pode ser alterado.</div>}
     {error === 'cancel_reason_required' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Informe o motivo do cancelamento.</div>}
     {error === 'return_required' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Informe data/hora e descricao para finalizar com retorno.</div>}
-    {error === 'slot_conflict' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Horario comprometido: ja existe outro agendamento que ocupa a janela de 2 horas.</div>}
+    {error === 'slot_conflict' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Horario comprometido: ja existe outro agendamento que ocupa a janela de {intervaloHoras} horas.</div>}
     {error === 'payment_only_concluded' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">So e possivel confirmar pagamento em chamados concluidos.</div>}
     {error === 'payment_method_required' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Selecione a forma de pagamento.</div>}
     {error === 'no_approved_orcamento' && <div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg px-4 py-3 mb-4 text-sm">Nao existe orcamento aceite para confirmar pagamento.</div>}
@@ -345,8 +348,9 @@ function getMbWayStatusLabel(status?: string) {
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Horario Agendado *</label>
-            <input type="datetime-local" name="horario_agendado" required id="edit-horario-input" value={toDatetimeLocalValue(chamado.horario_agendado)} disabled={isLocked} class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-500" />
-            <p id="edit-horario-warning" class="hidden mt-2 text-xs text-amber-700">Horario comprometido por outro agendamento (janela de 2h).</p>
+            <SlotPicker hiddenId="edit-horario-input" intervaloHoras={intervaloHoras} value={toDatetimeLocalValue(chamado.horario_agendado)} required={true} disabled={isLocked} />
+            <p class="mt-1 text-xs text-gray-500">Atendimento: <span class="font-medium text-red-700">{timeRangeLabel(chamado.horario_agendado, intervaloHoras)}</span> (janela de {intervaloHoras}h)</p>
+            <p id="edit-horario-warning" class="hidden mt-2 text-xs text-amber-700">Horario comprometido por outro agendamento (janela de {intervaloHoras}h).</p>
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -786,7 +790,7 @@ function getMbWayStatusLabel(status?: string) {
       editForm.submit();
       return;
     }
-    const confirmed = await openConflictModal(`Horario comprometido por outro agendamento (janela de 2h)${conflictId ? ` - Chamado #${conflictId}` : ''}. Deseja agendar mesmo assim?`);
+    const confirmed = await openConflictModal(`Horario comprometido por outro agendamento (janela de ${(document.getElementById('edit-horario-input') as HTMLInputElement | null)?.dataset.intervalo || '3'}h)${conflictId ? ` - Chamado #${conflictId}` : ''}. Deseja agendar mesmo assim?`);
     if (!confirmed) {
       isSubmittingEditForm = false;
       return;
@@ -988,7 +992,7 @@ function getMbWayStatusLabel(status?: string) {
         return;
       }
       closeReturnModal();
-      const confirmed = await openConflictModal(`Horario comprometido por outro agendamento (janela de 2h)${conflictId ? ` - Chamado #${conflictId}` : ''}. Deseja agendar mesmo assim?`);
+      const confirmed = await openConflictModal(`Horario comprometido por outro agendamento (janela de ${(document.getElementById('edit-horario-input') as HTMLInputElement | null)?.dataset.intervalo || '3'}h)${conflictId ? ` - Chamado #${conflictId}` : ''}. Deseja agendar mesmo assim?`);
       if (!confirmed) {
         isSubmittingReturnForm = false;
         return;

@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
 import { sendAgendamentoEmail } from '../../../lib/email';
+import { getAgendamentoIntervaloHoras } from '../../../lib/settings';
 
 export const GET: APIRoute = async () => {
   const sql = getDb();
@@ -34,12 +35,13 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     }
 
     const sql = getDb();
+    const intervalo = await getAgendamentoIntervaloHoras(3);
     const [conflict] = await sql`
       SELECT id
       FROM chamados
       WHERE status NOT IN ('concluido', 'cancelado')
-        AND horario_agendado < (${horario_agendado}::timestamp + interval '2 hour')
-        AND (horario_agendado + interval '2 hour') > ${horario_agendado}::timestamp
+        AND horario_agendado < (${horario_agendado}::timestamp + make_interval(hours => ${intervalo}))
+        AND (horario_agendado + make_interval(hours => ${intervalo})) > ${horario_agendado}::timestamp
       LIMIT 1
     `;
     if (conflict && !allowConflict) {
@@ -64,6 +66,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
           cidade,
           codigoPostal: codigo_postal,
           descricao,
+          intervaloHoras: intervalo,
         });
       } catch (mailError) {
         console.error('Create chamado email error:', mailError);

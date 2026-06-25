@@ -81,6 +81,14 @@ export async function setSettingBool(key: string, value: boolean) {
   await setSetting(key, value ? 'true' : 'false');
 }
 
+export async function getAgendamentoIntervaloHoras(fallback = 3): Promise<number> {
+  const raw = await getSetting('agendamento_intervalo_horas', String(fallback));
+  const parsed = Number.parseInt(String(raw).trim(), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  if (parsed > 12) return 12;
+  return parsed;
+}
+
 export async function getIvaRate(fallback = 23): Promise<number> {
   const raw = await getSetting('iva_rate', String(fallback));
   const parsed = Number.parseFloat(String(raw).replace(',', '.'));

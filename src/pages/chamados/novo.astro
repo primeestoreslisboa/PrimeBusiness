@@ -1,9 +1,12 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import SlotPicker from '../../components/SlotPicker.astro';
 import { getDb } from '../../lib/db';
+import { getAgendamentoIntervaloHoras } from '../../lib/settings';
 
 const user = Astro.locals.user;
 const sql = getDb();
+const intervaloHoras = await getAgendamentoIntervaloHoras(3);
 
 const tecnicos = await sql`SELECT id, name FROM users WHERE deleted_at IS NULL ORDER BY name`;
 
@@ -30,7 +33,7 @@ const prefillCidade = Astro.url.searchParams.get('cidade') || '';
     {error && (
       <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
         {error === 'slot_conflict'
-          ? 'Horario comprometido: ja existe outro agendamento que ocupa a janela de 2 horas.'
+          ? `Horario comprometido: ja existe outro agendamento que ocupa a janela de ${intervaloHoras} horas.`
           : 'Erro ao criar chamado. Verifique os dados e tente novamente.'}
       </div>
     )}
@@ -90,8 +93,9 @@ const prefillCidade = Astro.url.searchParams.get('cidade') || '';
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Horario Agendado *</label>
-            <input type="datetime-local" name="horario_agendado" required id="novo-horario-input" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none" />
-            <p id="novo-horario-warning" class="hidden mt-2 text-xs text-amber-700">Horario comprometido por outro agendamento (janela de 2h).</p>
+            <SlotPicker hiddenId="novo-horario-input" intervaloHoras={intervaloHoras} required={true} minToday={true} />
+            <p class="mt-1 text-xs text-gray-400">O cliente é atendido numa janela de {intervaloHoras} horas a partir da hora escolhida.</p>
+            <p id="novo-horario-warning" class="hidden mt-2 text-xs text-amber-700">Horario comprometido por outro agendamento (janela de {intervaloHoras}h).</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Tecnico Responsavel</label>
@@ -249,7 +253,8 @@ const prefillCidade = Astro.url.searchParams.get('cidade') || '';
       novoForm.submit();
       return;
     }
-    const confirmed = await openConflictModal(`Horario comprometido por outro agendamento (janela de 2h)${conflictId ? ` - Chamado #${conflictId}` : ''}. Deseja agendar mesmo assim?`);
+    const intervaloH = novoHorarioInput?.dataset.intervalo || '3';
+    const confirmed = await openConflictModal(`Horario comprometido por outro agendamento (janela de ${intervaloH}h)${conflictId ? ` - Chamado #${conflictId}` : ''}. Deseja agendar mesmo assim?`);
     if (!confirmed) {
       isSubmittingNovo = false;
       return;

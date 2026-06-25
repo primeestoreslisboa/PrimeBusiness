@@ -1,9 +1,10 @@
 ﻿import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
-import { getIvaRate } from '../../../lib/settings';
+import { getIvaRate, getAgendamentoIntervaloHoras } from '../../../lib/settings';
 
 async function handleUpdate(id: string, formData: FormData, redirect: (path: string) => Response, userRole?: string) {
   const sql = getDb();
+  const intervalo = await getAgendamentoIntervaloHoras(3);
   const [current] = await sql`SELECT * FROM chamados WHERE id = ${id}`;
   if (!current) return redirect('/chamados?error=not_found');
 
@@ -30,8 +31,8 @@ async function handleUpdate(id: string, formData: FormData, redirect: (path: str
       FROM chamados
       WHERE id <> ${id}
         AND status NOT IN ('concluido', 'cancelado')
-        AND horario_agendado < (${retornoHorario}::timestamp + interval '2 hour')
-        AND (horario_agendado + interval '2 hour') > ${retornoHorario}::timestamp
+        AND horario_agendado < (${retornoHorario}::timestamp + make_interval(hours => ${intervalo}))
+        AND (horario_agendado + make_interval(hours => ${intervalo})) > ${retornoHorario}::timestamp
       LIMIT 1
     `;
     if (returnConflict && !retornoAllowConflict) {
@@ -170,8 +171,8 @@ async function handleUpdate(id: string, formData: FormData, redirect: (path: str
     FROM chamados
     WHERE id <> ${id}
       AND status NOT IN ('concluido', 'cancelado')
-      AND horario_agendado < (${horario_agendado}::timestamp + interval '2 hour')
-      AND (horario_agendado + interval '2 hour') > ${horario_agendado}::timestamp
+      AND horario_agendado < (${horario_agendado}::timestamp + make_interval(hours => ${intervalo}))
+      AND (horario_agendado + make_interval(hours => ${intervalo})) > ${horario_agendado}::timestamp
     LIMIT 1
   `;
   if (scheduleConflict && !allowConflict) {

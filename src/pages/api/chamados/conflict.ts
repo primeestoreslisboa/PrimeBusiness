@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
+import { getAgendamentoIntervaloHoras } from '../../../lib/settings';
 
 export const GET: APIRoute = async ({ url }) => {
   try {
@@ -14,13 +15,14 @@ export const GET: APIRoute = async ({ url }) => {
     }
 
     const sql = getDb();
+    const intervalo = await getAgendamentoIntervaloHoras(3);
     const [conflict] = await sql`
       SELECT id, horario_agendado
       FROM chamados
       WHERE (${Number.isFinite(excludeId) ? excludeId : -1} < 0 OR id <> ${Number.isFinite(excludeId) ? excludeId : -1})
         AND status NOT IN ('concluido', 'cancelado')
-        AND horario_agendado < (${datetime}::timestamp + interval '2 hour')
-        AND (horario_agendado + interval '2 hour') > ${datetime}::timestamp
+        AND horario_agendado < (${datetime}::timestamp + make_interval(hours => ${intervalo}))
+        AND (horario_agendado + make_interval(hours => ${intervalo})) > ${datetime}::timestamp
       ORDER BY horario_agendado ASC
       LIMIT 1
     `;
