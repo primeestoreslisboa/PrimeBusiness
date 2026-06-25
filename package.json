@@ -8,7 +8,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "db:init": "node --env-file=.env scripts/db-init.mjs",
-    "db:seed": "node --env-file=.env scripts/db-seed.mjs"
+    "db:seed": "node --env-file=.env scripts/db-seed.mjs",
+    "db:orcamentos": "node --env-file=.env scripts/db-orcamentos-diretos.mjs"
   },
   "dependencies": {
     "@astrojs/netlify": "^6.3.0",
@@ -19,10 +20,12 @@
     "bcryptjs": "^2.4.3",
     "jose": "^5.9.6",
     "nodemailer": "^8.0.4",
+    "pdfkit": "^0.19.1",
     "resend": "^4.1.2",
     "tailwindcss": "^3.4.17"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6"
+    "@types/bcryptjs": "^2.4.6",
+    "@types/pdfkit": "^0.17.6"
   }
 }

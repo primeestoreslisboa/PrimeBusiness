@@ -164,6 +164,70 @@ export async function sendOrcamentoEmail(params: {
   return info;
 }
 
+export async function sendOrcamentoDiretoEmail(params: {
+  toEmail: string;
+  toName: string;
+  numero: string;
+  total: number;
+  pdfBuffer: Buffer;
+  viewUrl: string;
+  empresa: string;
+}) {
+  const { toEmail, toName, numero, total, pdfBuffer, viewUrl, empresa } = params;
+  const fromUser = import.meta.env.EMAIL_USER || process.env.EMAIL_USER;
+  const transporter = getTransporter();
+
+  const info = await transporter.sendMail({
+    from: `"${empresa}" <${fromUser}>`,
+    to: toEmail,
+    subject: `Orçamento ${numero} - ${empresa}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #8B1A1A;">Orçamento ${numero}</h2>
+        <p>Olá <strong>${toName}</strong>,</p>
+        <p>Segue em anexo o orçamento solicitado, no valor total de <strong>${total.toFixed(2).replace('.', ',')} €</strong>.</p>
+        <p>Pode também consultar o orçamento online:</p>
+        <p><a href="${viewUrl}" style="display:inline-block;background:#8B1A1A;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600;">Ver orçamento</a></p>
+        <p style="color:#6b7280;font-size:13px;">Se o botão não funcionar, copie este endereço: <a href="${viewUrl}">${viewUrl}</a></p>
+        <p style="color:#6b7280;font-size:14px;">Este orçamento é uma proposta de serviço sem compromisso.</p>
+        <p><strong>${empresa}</strong></p>
+      </div>
+    `,
+    text:
+      `Olá ${toName},\n\n` +
+      `Segue em anexo o orçamento ${numero}, no valor total de ${total.toFixed(2).replace('.', ',')} €.\n\n` +
+      `Consulte o orçamento online: ${viewUrl}\n\n` +
+      `${empresa}`,
+    attachments: [
+      {
+        filename: `${numero}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      },
+    ],
+  });
+
+  return info;
+}
+
+export function generateOrcamentoDiretoWhatsAppLink(params: {
+  telefone: string;
+  numero: string;
+  total: number;
+  viewUrl: string;
+  empresa: string;
+}): string {
+  const { telefone, numero, total, viewUrl, empresa } = params;
+  const phone = telefone.replace(/\D/g, '');
+  const message = encodeURIComponent(
+    `Olá! Segue o orçamento ${numero} da ${empresa}.\n\n` +
+      `*TOTAL: ${total.toFixed(2).replace('.', ',')} €*\n\n` +
+      `Pode consultar e descarregar o PDF aqui:\n${viewUrl}\n\n` +
+      `Proposta de serviço sem compromisso. Para qualquer questão, estamos ao dispor.`,
+  );
+  return `https://wa.me/${phone}?text=${message}`;
+}
+
 export function generateWhatsAppLink(
   telefone: string,
   chamadoId: number,

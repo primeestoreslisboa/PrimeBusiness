@@ -1,0 +1,25 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import OrcamentoForm from '../../components/OrcamentoForm.astro';
+import { getIvaRate } from '../../lib/settings';
+
+const user = Astro.locals.user;
+const error = Astro.url.searchParams.get('error');
+const ivaRate = await getIvaRate(23);
+---
+<Layout title="Novo Orçamento" user={user}>
+  <div class="py-6 pb-24">
+    <div class="flex items-center gap-3 mb-6">
+      <a href="/orcamentos" class="text-gray-400 hover:text-gray-600">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </a>
+      <h1 class="text-2xl font-bold text-gray-800">Novo Orçamento</h1>
+    </div>
+
+    {error && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">❌ {error === 'validation' ? 'Preencha o nome do cliente.' : 'Ocorreu um erro ao criar o orçamento.'}</div>}
+
+    <OrcamentoForm action="/api/orcamentos-diretos" submitLabel="Criar Orçamento" ivaRate={ivaRate} />
+  </div>
+</Layout>

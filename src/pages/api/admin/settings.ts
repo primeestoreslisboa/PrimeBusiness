@@ -31,6 +31,17 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
     await setSetting('booking_notify_emails', bookingNotifyEmails);
     await setSetting('booking_notify_whatsapp_numbers', bookingNotifyWhatsappNumbers);
     await setSetting('booking_notify_whatsapp_callmebot_apikey', bookingNotifyWhatsappCallmebotApiKey);
+
+    // Dados da empresa (PDF do orçamento)
+    await setSetting('empresa_nome', form.get('empresa_nome')?.toString().trim() || '');
+    await setSetting('empresa_subtitulo', form.get('empresa_subtitulo')?.toString().trim() || '');
+    await setSetting('empresa_telefone', form.get('empresa_telefone')?.toString().trim() || '');
+    await setSetting('empresa_email', form.get('empresa_email')?.toString().trim() || '');
+    await setSetting('empresa_website', form.get('empresa_website')?.toString().trim() || '');
+    await setSetting('empresa_horario', form.get('empresa_horario')?.toString().trim() || '');
+    await setSetting('empresa_iban', form.get('empresa_iban')?.toString().trim() || '');
+    await setSetting('empresa_condicoes', form.get('empresa_condicoes')?.toString() || '');
+
     return redirect('/admin/configuracoes?success=saved');
   } catch (error) {
     console.error('Settings save error:', error);

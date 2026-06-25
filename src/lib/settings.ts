@@ -14,6 +14,35 @@ export type BookingNotificationOptions = {
   whatsappCallmebotApiKey: string;
 };
 
+export type CompanyInfo = {
+  nome: string;
+  subtitulo: string;
+  telefone: string;
+  email: string;
+  website: string;
+  horario: string;
+  iban: string;
+  condicoes: string[];
+};
+
+export const COMPANY_DEFAULTS: CompanyInfo = {
+  nome: 'Prime Estores',
+  subtitulo: 'Instalação e Reparação de Estores',
+  telefone: '+351 923 348 323',
+  email: 'info@primeestores.pt',
+  website: 'primeestores.pt',
+  horario: 'Grande Lisboa · Seg–Sáb 8h–20h',
+  iban: 'PT50 0033 0000 4556 0557 8820 5',
+  condicoes: [
+    'Validade do orçamento: 30 dias a contar da data de emissão.',
+    'Pagamento: transferência bancária, MB Way ou numerário.',
+    'Prazo de execução: a confirmar após aceitação do orçamento.',
+    'Garantia: 1 ano em todos os trabalhos de instalação e reparação.',
+    'Deslocação incluída em toda a Grande Lisboa, sem custos adicionais.',
+    'Valores em euros (€). IVA incluído à taxa legal em vigor.',
+  ],
+};
+
 export async function ensureSettingsTable() {
   const sql = getDb();
   await sql`
@@ -100,5 +129,33 @@ export async function getBookingNotificationOptions(): Promise<BookingNotificati
     emails,
     whatsappNumbers,
     whatsappCallmebotApiKey: callmebotApiKeyRaw.trim(),
+  };
+}
+
+export async function getCompanyInfo(): Promise<CompanyInfo> {
+  const [nome, subtitulo, telefone, email, website, horario, iban, condicoesRaw] = await Promise.all([
+    getSetting('empresa_nome', COMPANY_DEFAULTS.nome),
+    getSetting('empresa_subtitulo', COMPANY_DEFAULTS.subtitulo),
+    getSetting('empresa_telefone', COMPANY_DEFAULTS.telefone),
+    getSetting('empresa_email', COMPANY_DEFAULTS.email),
+    getSetting('empresa_website', COMPANY_DEFAULTS.website),
+    getSetting('empresa_horario', COMPANY_DEFAULTS.horario),
+    getSetting('empresa_iban', COMPANY_DEFAULTS.iban),
+    getSetting('empresa_condicoes', ''),
+  ]);
+
+  const condicoes = condicoesRaw.trim()
+    ? condicoesRaw.split(/\r?\n/g).map(l => l.trim()).filter(Boolean)
+    : COMPANY_DEFAULTS.condicoes;
+
+  return {
+    nome: nome.trim() || COMPANY_DEFAULTS.nome,
+    subtitulo: subtitulo.trim() || COMPANY_DEFAULTS.subtitulo,
+    telefone: telefone.trim() || COMPANY_DEFAULTS.telefone,
+    email: email.trim() || COMPANY_DEFAULTS.email,
+    website: website.trim() || COMPANY_DEFAULTS.website,
+    horario: horario.trim() || COMPANY_DEFAULTS.horario,
+    iban: iban.trim() || COMPANY_DEFAULTS.iban,
+    condicoes,
   };
 }
