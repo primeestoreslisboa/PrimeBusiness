@@ -10,6 +10,17 @@ const orcamentos = await sql`
   FROM orcamentos_diretos
   ORDER BY created_at DESC
 `;
+const chamadosAbertos = await sql`
+  SELECT id, nome, cidade, horario_agendado
+  FROM chamados
+  WHERE status IN ('pendente', 'em_andamento')
+  ORDER BY horario_agendado DESC
+  LIMIT 100
+`;
+const fmtChamado = (c: any) => {
+  const dt = new Date(c.horario_agendado).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Lisbon' });
+  return `#${c.id} · ${c.nome}${c.cidade ? ` (${c.cidade})` : ''} · ${dt}`;
+};
 const success = Astro.url.searchParams.get('success');
 const error = Astro.url.searchParams.get('error');
 const errMsg = Astro.url.searchParams.get('msg');
@@ -18,12 +29,15 @@ const successMessages: Record<string, string> = {
   email_sent: 'Orçamento enviado por email (PDF anexado).',
   deleted: 'Orçamento removido.',
   created: 'Orçamento criado.',
+  desassociado: 'Orçamento desassociado do agendamento.',
 };
 const errorMessages: Record<string, string> = {
   no_email: 'Indique um email de destino.',
   no_phone: 'Indique um telefone de destino.',
   no_horario: 'Indique a data e hora do agendamento.',
   agendamento_incompleto: 'Para agendar é preciso telefone, morada e localidade do cliente.',
+  no_chamado: 'Escolha um agendamento válido para associar.',
+  chamado_fechado: 'Esse agendamento já não está em aberto.',
   email_failed: `Falha ao enviar email${errMsg ? `: ${errMsg}` : '.'}`,
   locked: 'Orçamento fechado: não pode ser editado.',
   not_found: 'Orçamento não encontrado.',
@@ -68,7 +82,9 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
                     <p class="font-semibold text-gray-800 truncate">{o.cliente_nome}</p>
                     {o.chamado_id && <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Agendado</span>}
                   </div>
-                  <p class="text-xs text-gray-400">{o.numero ?? `#${o.id}`}</p>
+                  {o.cliente_telefone && <p class="text-xs text-gray-500 truncate">📞 {o.cliente_telefone}</p>}
+                  {o.cliente_email && <p class="text-xs text-gray-500 truncate">✉️ {o.cliente_email}</p>}
+                  <p class="text-xs text-gray-400 mt-0.5">{o.numero ?? `#${o.id}`}</p>
                 </div>
                 <div class="text-right flex-shrink-0">
                   <p class="font-semibold text-red-700">{eur(num(o.total))} €</p>
@@ -97,10 +113,19 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
               </button>
 
               {o.chamado_id ? (
-                <a href={`/chamados/${o.chamado_id}`} title="Ver chamado"
-                   class="w-8 h-8 flex items-center justify-center rounded-lg text-amber-600 hover:bg-amber-50 transition">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                </a>
+                <>
+                  <a href={`/chamados/${o.chamado_id}`} title="Ver chamado"
+                     class="w-8 h-8 flex items-center justify-center rounded-lg text-amber-600 hover:bg-amber-50 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  </a>
+                  <form method="POST" action={apiUrl} data-confirm="Desassociar este orçamento do agendamento?">
+                    <input type="hidden" name="action" value="desassociar_agendamento" />
+                    <button type="submit" title="Desassociar do agendamento"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5m-1.328-4.328a4 4 0 005.656 0l3-3a4 4 0 10-5.656-5.656l-1.5 1.5M4 4l16 16"/></svg>
+                    </button>
+                  </form>
+                </>
               ) : (
                 <button type="button" title="Criar agendamento"
                         data-open="modal-agendamento" data-api={apiUrl}
@@ -191,16 +216,25 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
           <button type="button" class="modal-close w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">✕</button>
         </div>
         <form method="POST" data-form="agendamento" class="space-y-3">
-          <input type="hidden" name="action" value="criar_agendamento" />
+          <input type="hidden" name="action" value="criar_agendamento" data-action-input />
           <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Associar a agendamento existente</label>
+            <select name="chamado_id" data-chamado-select
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none bg-white">
+              <option value="">— Criar novo agendamento —</option>
+              {chamadosAbertos.map((c: any) => <option value={c.id}>{fmtChamado(c)}</option>)}
+            </select>
+            <p class="text-xs text-gray-400 mt-1">Escolha um chamado em aberto, ou deixe em "Criar novo" para gerar um novo.</p>
+          </div>
+          <div data-novo-agendamento>
             <label class="block text-sm font-medium text-gray-700 mb-1">Data e hora da visita</label>
-            <input type="datetime-local" name="horario_agendado" required
+            <input type="datetime-local" name="horario_agendado" data-horario-input
                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none" />
             <p class="text-xs text-gray-400 mt-1">Gera um chamado com os dados do cliente. Necessário telefone, morada e localidade.</p>
           </div>
           <div class="grid grid-cols-2 gap-2 pt-1">
             <button type="button" class="modal-close py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50">Cancelar</button>
-            <button type="submit" class="py-2.5 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white">Criar agendamento</button>
+            <button type="submit" class="py-2.5 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white" data-agendar-submit>Criar agendamento</button>
           </div>
         </form>
       </div>
@@ -239,5 +273,21 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
       el.addEventListener('click', closeAllModals);
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllModals(); });
+
+    // Agendamento: alternar entre criar novo e associar a um existente
+    const agSelect = document.querySelector('[data-chamado-select]') as HTMLSelectElement | null;
+    const agActionInput = document.querySelector('[data-action-input]') as HTMLInputElement | null;
+    const agNovoBlock = document.querySelector('[data-novo-agendamento]') as HTMLElement | null;
+    const agHorario = document.querySelector('[data-horario-input]') as HTMLInputElement | null;
+    const agSubmit = document.querySelector('[data-agendar-submit]') as HTMLElement | null;
+    function syncAgendar() {
+      const existing = !!(agSelect && agSelect.value);
+      if (agActionInput) agActionInput.value = existing ? 'associar_agendamento' : 'criar_agendamento';
+      if (agNovoBlock) agNovoBlock.style.display = existing ? 'none' : '';
+      if (agHorario) agHorario.required = !existing;
+      if (agSubmit) agSubmit.textContent = existing ? 'Associar agendamento' : 'Criar agendamento';
+    }
+    agSelect?.addEventListener('change', syncAgendar);
+    syncAgendar();
   </script>
 </Layout>

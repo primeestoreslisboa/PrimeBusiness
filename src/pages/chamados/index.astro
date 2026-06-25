@@ -137,6 +137,30 @@ if (status) {
 const chamados = await query;
 const fallbackIvaRate = await getIvaRate(23);
 
+// Orçamentos diretos associados a estes chamados
+const chamadoIds = chamados.map((c: any) => c.id);
+const orcamentosDiretos = chamadoIds.length > 0
+  ? await sql`
+      SELECT id, numero, total, status, include_iva, iva_rate, chamado_id
+      FROM orcamentos_diretos
+      WHERE chamado_id = ANY(${chamadoIds})
+      ORDER BY created_at DESC
+    `
+  : [];
+const diretosPorChamado = new Map<number, any[]>();
+for (const o of orcamentosDiretos) {
+  const arr = diretosPorChamado.get(o.chamado_id) ?? [];
+  arr.push(o);
+  diretosPorChamado.set(o.chamado_id, arr);
+}
+const orcDiretoStatusLabel: Record<string, string> = {
+  rascunho: 'Rascunho',
+  enviado: 'Enviado',
+  aprovado: 'Aprovado',
+  rejeitado: 'Rejeitado',
+};
+const eurFmt = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+
 function getStatusBadge(status: string) {
   const map: Record<string, { cls: string; label: string }> = {
     pendente: { cls: 'bg-yellow-100 text-yellow-800', label: 'Pendente' },
@@ -233,6 +257,7 @@ function buildDuplicateUrl(chamado: any) {
         {chamados.map((c: any) => {
           const badge = getStatusBadge(c.status);
           const orcList = Array.isArray(c.orc_list) ? c.orc_list : [];
+          const orcDiretos = diretosPorChamado.get(c.id) ?? [];
           const duplicateUrl = buildDuplicateUrl(c);
           return (
             <div class="relative bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
@@ -246,6 +271,28 @@ function buildDuplicateUrl(chamado: any) {
                     </div>
                     <p class="text-sm text-gray-500">{c.telefone} | {c.cidade}</p>
                     <p class="text-xs text-gray-400 mt-1 truncate">{c.descricao}</p>
+                    {orcDiretos.length > 0 && (
+                      <div class="mt-1 space-y-1">
+                        {orcDiretos.map((o: any) => {
+                          const base = Number.parseFloat(String(o.total ?? '0')) || 0;
+                          return (
+                            <p class="text-xs text-gray-500">
+                              Orçamento: {o.numero ?? `#${o.id}`} | EUR {eurFmt(base)} | Estado: {orcDiretoStatusLabel[o.status] ?? o.status}
+                              {' '}
+                              <span
+                                class="text-red-700 hover:text-red-800 underline font-medium cursor-pointer"
+                                role="link"
+                                tabindex="0"
+                                onclick={`event.preventDefault(); event.stopPropagation(); window.location.href='/orcamentos/${o.id}/editar'`}
+                                onkeydown={`if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation(); window.location.href='/orcamentos/${o.id}/editar'}`}
+                              >
+                                Abrir
+                              </span>
+                            </p>
+                          );
+                        })}
+                      </div>
+                    )}
                     {orcList.length > 0 ? (
                       <div class="mt-1 space-y-1">
                         {orcList.map((o: any) => (
@@ -264,9 +311,9 @@ function buildDuplicateUrl(chamado: any) {
                           </p>
                         ))}
                       </div>
-                    ) : (
+                    ) : orcDiretos.length === 0 ? (
                       <p class="text-xs text-gray-500 mt-1">Sem orcamentos</p>
-                    )}
+                    ) : null}
                     {c.status === 'concluido' && (
                       <div class={`mt-2 inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 border text-xs font-medium ${c.paid_at ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                         <span class={`inline-block w-2 h-2 rounded-full ${c.paid_at ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>

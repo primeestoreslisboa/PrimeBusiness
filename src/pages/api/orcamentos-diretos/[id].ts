@@ -139,6 +139,37 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       return redirect(whatsappUrl);
     }
 
+    // ---------- DESASSOCIAR DO AGENDAMENTO ----------
+    if (action === 'desassociar_agendamento') {
+      await sql`UPDATE orcamentos_diretos SET chamado_id=NULL, updated_at=NOW() WHERE id=${id}`;
+      return redirect(`/orcamentos?success=desassociado`);
+    }
+
+    // ---------- ASSOCIAR A AGENDAMENTO EXISTENTE ----------
+    if (action === 'associar_agendamento') {
+      if (orc.chamado_id) return redirect(`/chamados/${orc.chamado_id}`);
+      const chamadoId = form.get('chamado_id')?.toString().trim();
+      if (!chamadoId) return redirect(`/orcamentos?error=no_chamado`);
+      const [chamado] = await sql`
+        SELECT id, status, morada, codigo_postal, cidade FROM chamados WHERE id = ${chamadoId} LIMIT 1
+      `;
+      if (!chamado) return redirect(`/orcamentos?error=no_chamado`);
+      if (chamado.status !== 'pendente' && chamado.status !== 'em_andamento') {
+        return redirect(`/orcamentos?error=chamado_fechado`);
+      }
+      // Ao associar, a morada do orçamento passa a refletir a do chamado.
+      await sql`
+        UPDATE orcamentos_diretos
+        SET chamado_id=${chamadoId},
+            cliente_morada=${chamado.morada ?? null},
+            cliente_codigo_postal=${chamado.codigo_postal ?? null},
+            cliente_localidade=${chamado.cidade ?? null},
+            updated_at=NOW()
+        WHERE id=${id}
+      `;
+      return redirect(`/chamados/${chamadoId}?success=orcamento_associado`);
+    }
+
     // ---------- CRIAR AGENDAMENTO (gera chamado) ----------
     if (action === 'criar_agendamento') {
       if (orc.chamado_id) return redirect(`/chamados/${orc.chamado_id}`);
