@@ -22,6 +22,7 @@ const paymentMbwayPhoneEnabled = await getSettingBool('payment_mbway_phone_enabl
 const paymentMbwayPhone = await getSetting('payment_mbway_phone', '');
 const ivaRate = await getSetting('iva_rate', '23');
 const agendamentoIntervaloHoras = await getSetting('agendamento_intervalo_horas', '3');
+const margemVendaPct = await getSetting('margem_venda_pct', '400');
 const bookingNotifyEmails = await getSetting('booking_notify_emails', 'edward.carvalho@gmail.com');
 const bookingNotifyWhatsappNumbers = await getSetting('booking_notify_whatsapp_numbers', '911831978');
 const bookingNotifyWhatsappCallmebotApiKey = await getSetting('booking_notify_whatsapp_callmebot_apikey', '');
@@ -98,6 +99,14 @@ const error = Astro.url.searchParams.get('error');
           <span class="block text-sm font-semibold text-gray-800">Intervalo de atendimento (horas)</span>
           <span class="block text-xs text-gray-500 mb-2">Janela de atendimento ao cliente a partir da hora marcada (ex: 3 = "09:00 às 12:00"). Usado nos agendamentos, dashboard, emails e marcação pública.</span>
           <input type="number" name="agendamento_intervalo_horas" value={agendamentoIntervaloHoras} min="1" max="12" step="1" placeholder="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+        </span>
+      </label>
+
+      <label class="flex items-start gap-3 rounded-lg border border-gray-200 p-3 cursor-pointer hover:bg-gray-50 transition">
+        <span class="flex-1">
+          <span class="block text-sm font-semibold text-gray-800">Margem de venda (%)</span>
+          <span class="block text-xs text-gray-500 mb-2">Preço de venda = custo × (margem / 100). Ex: 400% → venda = custo × 4. Aplicado aos produtos do catálogo.</span>
+          <input type="number" name="margem_venda_pct" value={margemVendaPct} min="1" step="1" placeholder="400" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
         </span>
       </label>
 

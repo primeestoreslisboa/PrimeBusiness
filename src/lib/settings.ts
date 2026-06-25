@@ -89,6 +89,23 @@ export async function getAgendamentoIntervaloHoras(fallback = 3): Promise<number
   return parsed;
 }
 
+export async function getMargemVenda(fallback = 400): Promise<number> {
+  const raw = await getSetting('margem_venda_pct', String(fallback));
+  const parsed = Number.parseFloat(String(raw).replace(',', '.'));
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  if (parsed > 10000) return 10000;
+  return parsed;
+}
+
+/** Preço de venda = custo × (margem/100). Sem custo, usa o preço guardado. */
+export function calcPrecoVenda(custo: number | null | undefined, margemPct: number, precoGuardado = 0): number {
+  const c = typeof custo === 'number' ? custo : Number.parseFloat(String(custo ?? ''));
+  if (Number.isFinite(c) && c > 0) {
+    return Math.round(c * (margemPct / 100) * 100) / 100;
+  }
+  return precoGuardado;
+}
+
 export async function getIvaRate(fallback = 23): Promise<number> {
   const raw = await getSetting('iva_rate', String(fallback));
   const parsed = Number.parseFloat(String(raw).replace(',', '.'));

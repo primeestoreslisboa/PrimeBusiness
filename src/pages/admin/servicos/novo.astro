@@ -1,7 +1,9 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
+import { getMargemVenda } from '../../../lib/settings';
 const user = Astro.locals.user;
 const error = Astro.url.searchParams.get('error');
+const margem = await getMargemVenda(400);
 ---
 <Layout title="Novo Serviço" user={user}>
   <div class="py-6 pb-24">
@@ -14,7 +16,7 @@ const error = Astro.url.searchParams.get('error');
       <h1 class="text-2xl font-bold text-gray-800">Novo Serviço</h1>
     </div>
     {error && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">❌ Erro ao criar serviço.</div>}
-    <form method="POST" action="/api/servicos" class="space-y-4">
+    <form method="POST" action="/api/servicos" class="space-y-4" id="servico-form" data-margem={margem}>
       <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-3">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
@@ -26,17 +28,38 @@ const error = Astro.url.searchParams.get('error');
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Preço (€) *</label>
-            <input type="number" name="preco" step="0.01" min="0" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none"/>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Custo (€) *</label>
+            <input type="number" name="custo" id="custo-input" step="0.01" min="0" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none"/>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Unidade</label>
-            <input type="text" name="unidade" value="unidade" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none"/>
+            <input type="text" name="unidade" value="unidade" list="unidade-options" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none"/>
+            <datalist id="unidade-options"><option value="unidade"></option><option value="m²"></option><option value="ml"></option></datalist>
           </div>
+        </div>
+        <div class="bg-green-50 border border-green-100 rounded-lg px-3 py-2 flex items-center justify-between">
+          <span class="text-sm text-green-800 font-medium">Preço de venda (margem {margem}%)</span>
+          <span id="venda-preview" class="font-bold text-green-800 text-lg">€0.00</span>
         </div>
       </div>
       <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition">Criar Serviço</button>
     </form>
+
+    <script>
+      const form = document.getElementById('servico-form') as HTMLFormElement | null;
+      if (form) {
+        const margem = parseFloat(form.dataset.margem || '400') || 400;
+        const custoInput = document.getElementById('custo-input') as HTMLInputElement | null;
+        const preview = document.getElementById('venda-preview');
+        const fmt = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+        const update = () => {
+          const custo = parseFloat((custoInput?.value || '0').replace(',', '.')) || 0;
+          if (preview) preview.textContent = `€${fmt(custo * (margem / 100))}`;
+        };
+        custoInput?.addEventListener('input', update);
+        update();
+      }
+    </script>
   </div>
 </Layout>
 

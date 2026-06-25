@@ -2,7 +2,7 @@
 import Layout from '../../../layouts/Layout.astro';
 import OrcamentoForm from '../../../components/OrcamentoForm.astro';
 import { getDb } from '../../../lib/db';
-import { getIvaRate } from '../../../lib/settings';
+import { getIvaRate, getMargemVenda, calcPrecoVenda } from '../../../lib/settings';
 import { loadOrcamento, isLocked } from '../../../lib/orcamentos';
 
 const user = Astro.locals.user;
@@ -17,8 +17,11 @@ const { orc, itens } = loaded;
 if (isLocked(orc.status)) return Astro.redirect(`/orcamentos?error=locked`);
 
 const ivaRate = await getIvaRate(23);
+const margem = await getMargemVenda(400);
 const error = Astro.url.searchParams.get('error');
 const success = Astro.url.searchParams.get('success');
+const produtosRaw = await sql`SELECT id, nome, custo, preco, unidade FROM servicos WHERE ativo = true ORDER BY nome`;
+const produtos = produtosRaw.map((p: any) => ({ id: p.id, nome: p.nome, unidade: p.unidade, venda: calcPrecoVenda(p.custo, margem, Number(p.preco)) }));
 
 let chamadosAbertos = await sql`
   SELECT id, nome, telefone, email, morada, codigo_postal, cidade, horario_agendado
@@ -58,6 +61,6 @@ if (orc.chamado_id && !chamadosAbertos.some((c: any) => String(c.id) === String(
     {success === 'created' && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">✅ Orçamento criado. Pode agora enviá-lo a partir da lista.</div>}
     {error && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">❌ {error === 'validation' ? 'Preencha o nome do cliente.' : 'Ocorreu um erro ao guardar.'}</div>}
 
-    <OrcamentoForm action={`/api/orcamentos-diretos/${orc.id}`} actionName="update" submitLabel="Guardar Alterações" ivaRate={ivaRate} orc={orc} itens={itens} chamadosAbertos={chamadosAbertos} />
+    <OrcamentoForm action={`/api/orcamentos-diretos/${orc.id}`} actionName="update" submitLabel="Guardar Alterações" ivaRate={ivaRate} orc={orc} itens={itens} chamadosAbertos={chamadosAbertos} produtos={produtos} />
   </div>
 </Layout>

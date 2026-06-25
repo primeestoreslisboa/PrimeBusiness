@@ -11,8 +11,9 @@ export interface Props {
   prefill?: any;
   chamadoId?: string | number | null;
   chamadosAbertos?: any[];
+  produtos?: any[];
 }
-const { action, actionName = null, submitLabel, ivaRate, orc = null, itens = [], prefill = null, chamadoId = null, chamadosAbertos = [] } = Astro.props;
+const { action, actionName = null, submitLabel, ivaRate, orc = null, itens = [], prefill = null, chamadoId = null, chamadosAbertos = [], produtos = [] } = Astro.props;
 const src = orc ?? prefill ?? {};
 const selectedChamadoId = String(orc?.chamado_id ?? chamadoId ?? '');
 const fmtChamadoOpt = (c: any) => {
@@ -90,11 +91,21 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
     <div id="itens-list" class="space-y-2">
       {rows.map((it: any) => (
         <div class="orc-item grid grid-cols-12 gap-2 items-start">
+          {produtos.length > 0 && (
+            <div class="col-span-12">
+              <select class={`${inputCls} item-prod`}>
+                <option value="">— Produto do catálogo (opcional) —</option>
+                {produtos.map((p: any) => (
+                  <option value={p.id} data-nome={p.nome} data-preco={p.venda} data-unidade={p.unidade}>{p.nome} — €{Number(p.venda).toFixed(2)}/{p.unidade}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div class="col-span-12 sm:col-span-6">
             <input type="text" name="item_desc" placeholder="Descrição da peça / serviço" value={it.descricao ?? ''} class={inputCls} />
           </div>
           <div class="col-span-3 sm:col-span-2">
-            <input type="number" name="item_qtd" step="1" min="0" placeholder="Qtd" value={it.quantidade ?? 1} class={`${inputCls} item-qtd text-center`} />
+            <input type="number" name="item_qtd" step="any" min="0" placeholder="Qtd" value={it.quantidade ?? 1} class={`${inputCls} item-qtd text-center`} />
           </div>
           <div class="col-span-5 sm:col-span-2">
             <input type="number" name="item_preco" step="0.01" min="0" placeholder="Preço €" value={it.preco_unitario ?? ''} class={`${inputCls} item-preco text-right`} />
@@ -153,11 +164,21 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
 
 <template id="item-template">
   <div class="orc-item grid grid-cols-12 gap-2 items-start">
+    {produtos.length > 0 && (
+      <div class="col-span-12">
+        <select class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none bg-white item-prod">
+          <option value="">— Produto do catálogo (opcional) —</option>
+          {produtos.map((p: any) => (
+            <option value={p.id} data-nome={p.nome} data-preco={p.venda} data-unidade={p.unidade}>{p.nome} — €{Number(p.venda).toFixed(2)}/{p.unidade}</option>
+          ))}
+        </select>
+      </div>
+    )}
     <div class="col-span-12 sm:col-span-6">
       <input type="text" name="item_desc" placeholder="Descrição da peça / serviço" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none" />
     </div>
     <div class="col-span-3 sm:col-span-2">
-      <input type="number" name="item_qtd" step="1" min="0" placeholder="Qtd" value="1" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none item-qtd text-center" />
+      <input type="number" name="item_qtd" step="any" min="0" placeholder="Qtd" value="1" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none item-qtd text-center" />
     </div>
     <div class="col-span-5 sm:col-span-2">
       <input type="number" name="item_preco" step="0.01" min="0" placeholder="Preço €" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none item-preco text-right" />
@@ -206,7 +227,21 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
           row.remove();
         } else {
           row.querySelectorAll('input').forEach(i => { (i as HTMLInputElement).value = (i as HTMLInputElement).name === 'item_qtd' ? '1' : ''; });
+          const sel = row.querySelector('.item-prod') as HTMLSelectElement | null;
+          if (sel) sel.value = '';
         }
+        recalc();
+      });
+
+      // Ao escolher um produto do catálogo, preenche descrição e preço (deixa editável).
+      const prod = row.querySelector('.item-prod') as HTMLSelectElement | null;
+      prod?.addEventListener('change', () => {
+        const opt = prod.selectedOptions[0];
+        if (!opt || !prod.value) return;
+        const desc = row.querySelector('[name="item_desc"]') as HTMLInputElement | null;
+        const preco = row.querySelector('.item-preco') as HTMLInputElement | null;
+        if (desc) desc.value = opt.dataset.nome || '';
+        if (preco) preco.value = opt.dataset.preco || '';
         recalc();
       });
     }
