@@ -47,8 +47,11 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
     const defaultIva = await getIvaRate(23);
     const ivaRate = includeIva ? defaultIva : 0;
 
+    const descontoTipo = form.get('desconto_tipo')?.toString() === 'percent' ? 'percent' : 'valor';
+    const descontoValor = Math.max(0, Number.parseFloat((form.get('desconto_valor')?.toString() || '0').replace(',', '.')) || 0);
+
     const itens = parseItens(form);
-    const { subtotal, total } = computeTotals(itens, includeIva, ivaRate);
+    const { subtotal, total } = computeTotals(itens, includeIva, ivaRate, descontoTipo, descontoValor);
 
     const token = genToken();
     const createdBy = (locals.user as any)?.userId ?? null;
@@ -67,11 +70,11 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
       INSERT INTO orcamentos_diretos (
         cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade,
         cliente_telefone, cliente_email, validade_dias, observacoes,
-        include_iva, iva_rate, subtotal, total, status, public_token, created_by, chamado_id
+        include_iva, iva_rate, desconto_tipo, desconto_valor, subtotal, total, status, public_token, created_by, chamado_id
       ) VALUES (
         ${cliente_nome}, ${cliente_nif}, ${cliente_morada}, ${cliente_codigo_postal}, ${cliente_localidade},
         ${cliente_telefone}, ${cliente_email}, ${validade_dias}, ${observacoes},
-        ${includeIva}, ${ivaRate}, ${subtotal}, ${total}, 'rascunho', ${token}, ${createdBy}, ${chamadoId}
+        ${includeIva}, ${ivaRate}, ${descontoTipo}, ${descontoValor}, ${subtotal}, ${total}, 'rascunho', ${token}, ${createdBy}, ${chamadoId}
       )
       RETURNING id, created_at
     `;

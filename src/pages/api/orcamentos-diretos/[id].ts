@@ -64,8 +64,11 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       const defaultIva = await getIvaRate(23);
       const ivaRate = includeIva ? defaultIva : 0;
 
+      const descontoTipo = form.get('desconto_tipo')?.toString() === 'percent' ? 'percent' : 'valor';
+      const descontoValor = Math.max(0, Number.parseFloat((form.get('desconto_valor')?.toString() || '0').replace(',', '.')) || 0);
+
       const itens = parseItens(form);
-      const { subtotal, total } = computeTotals(itens, includeIva, ivaRate);
+      const { subtotal, total } = computeTotals(itens, includeIva, ivaRate, descontoTipo, descontoValor);
 
       await sql`
         UPDATE orcamentos_diretos SET
@@ -73,7 +76,8 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
           cliente_codigo_postal=${cliente_codigo_postal}, cliente_localidade=${cliente_localidade},
           cliente_telefone=${cliente_telefone}, cliente_email=${cliente_email},
           validade_dias=${validade_dias}, observacoes=${observacoes},
-          include_iva=${includeIva}, iva_rate=${ivaRate}, subtotal=${subtotal}, total=${total},
+          include_iva=${includeIva}, iva_rate=${ivaRate}, desconto_tipo=${descontoTipo}, desconto_valor=${descontoValor},
+          subtotal=${subtotal}, total=${total},
           status=${status}, chamado_id=${chamadoId}, updated_at=NOW()
         WHERE id=${id}
       `;

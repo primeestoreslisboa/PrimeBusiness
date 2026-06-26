@@ -23,6 +23,8 @@ export type OrcamentoPdfData = {
   itens: OrcamentoItem[];
   includeIva: boolean;
   ivaRate: number;
+  descontoTipo?: string;
+  descontoValor?: number;
   observacoes?: string | null;
 };
 
@@ -43,9 +45,13 @@ function fmtDate(d: Date) {
 
 function computeTotals(data: OrcamentoPdfData) {
   const subtotal = data.itens.reduce((acc, it) => acc + it.quantidade * it.preco_unitario, 0);
-  const ivaValue = data.includeIva && data.ivaRate > 0 ? subtotal * (data.ivaRate / 100) : 0;
-  const total = subtotal + ivaValue;
-  return { subtotal, ivaValue, total };
+  let desconto = data.descontoTipo === 'percent' ? subtotal * ((data.descontoValor || 0) / 100) : (data.descontoValor || 0);
+  if (!Number.isFinite(desconto) || desconto < 0) desconto = 0;
+  if (desconto > subtotal) desconto = subtotal;
+  const base = subtotal - desconto;
+  const ivaValue = data.includeIva && data.ivaRate > 0 ? base * (data.ivaRate / 100) : 0;
+  const total = base + ivaValue;
+  return { subtotal, desconto, base, ivaValue, total };
 }
 
 /**
@@ -200,7 +206,7 @@ export function generateOrcamentoPdf(
       }
 
       // ---------- TOTAIS ----------
-      const { subtotal, ivaValue, total } = computeTotals(data);
+      const { subtotal, desconto, ivaValue, total } = computeTotals(data);
       y += 8;
       const totBoxW = 230;
       const totX = right - totBoxW;
@@ -211,6 +217,13 @@ export function generateOrcamentoPdf(
       };
       totRow('Subtotal', eur(subtotal), false, y);
       y += 16;
+      if (desconto > 0) {
+        const descLabel = data.descontoTipo === 'percent'
+          ? `Desconto (${(data.descontoValor || 0).toFixed(0)}%)`
+          : 'Desconto';
+        totRow(descLabel, `- ${eur(desconto)}`, false, y);
+        y += 16;
+      }
       totRow(`IVA (${data.ivaRate.toFixed(0)}%)`, eur(ivaValue), false, y);
       y += 18;
       doc.moveTo(totX, y).lineTo(right, y).lineWidth(1).strokeColor(RED).stroke();

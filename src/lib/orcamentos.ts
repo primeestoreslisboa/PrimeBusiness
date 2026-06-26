@@ -19,6 +19,8 @@ export type OrcamentoDiretoRow = {
   iva_rate: string | number;
   subtotal: string | number;
   total: string | number;
+  desconto_tipo: string | null;
+  desconto_valor: string | number | null;
   status: string;
   public_token: string | null;
   enviado_via: string | null;
@@ -54,11 +56,18 @@ export function computeTotals(
   itens: Array<{ quantidade: number; preco_unitario: number }>,
   includeIva: boolean,
   ivaRate: number,
+  descontoTipo: string = 'valor',
+  descontoValorRaw: number = 0,
 ) {
   const subtotal = itens.reduce((acc, it) => acc + it.quantidade * it.preco_unitario, 0);
-  const ivaValue = includeIva && ivaRate > 0 ? subtotal * (ivaRate / 100) : 0;
-  const total = subtotal + ivaValue;
-  return { subtotal, ivaValue, total };
+  // Desconto sempre sobre o valor sem IVA (subtotal).
+  let desconto = descontoTipo === 'percent' ? subtotal * (descontoValorRaw / 100) : descontoValorRaw;
+  if (!Number.isFinite(desconto) || desconto < 0) desconto = 0;
+  if (desconto > subtotal) desconto = subtotal;
+  const base = subtotal - desconto;
+  const ivaValue = includeIva && ivaRate > 0 ? base * (ivaRate / 100) : 0;
+  const total = base + ivaValue;
+  return { subtotal, desconto, base, ivaValue, total };
 }
 
 export async function loadOrcamento(sql: any, id: string | number) {
@@ -125,6 +134,8 @@ export async function buildOrcamentoPdf(
     })),
     includeIva: !!orc.include_iva,
     ivaRate: num(orc.iva_rate),
+    descontoTipo: orc.desconto_tipo || 'valor',
+    descontoValor: num(orc.desconto_valor),
     observacoes: orc.observacoes,
   };
 

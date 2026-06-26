@@ -109,10 +109,11 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
           </table>
 
           {(() => {
-            const t = computeTotals(loaded.itens.map((it: any) => ({ quantidade: num(it.quantidade), preco_unitario: num(it.preco_unitario) })), !!loaded.orc.include_iva, num(loaded.orc.iva_rate));
+            const t = computeTotals(loaded.itens.map((it: any) => ({ quantidade: num(it.quantidade), preco_unitario: num(it.preco_unitario) })), !!loaded.orc.include_iva, num(loaded.orc.iva_rate), loaded.orc.desconto_tipo || 'valor', num(loaded.orc.desconto_valor));
             return (
               <div class="totals">
                 <div><span>Subtotal</span><span>{eur(t.subtotal)} €</span></div>
+                {t.desconto > 0 && <div><span>Desconto{loaded.orc.desconto_tipo === 'percent' ? ` (${num(loaded.orc.desconto_valor).toFixed(0)}%)` : ''}</span><span>- {eur(t.desconto)} €</span></div>}
                 {loaded.orc.include_iva && <div><span>IVA ({num(loaded.orc.iva_rate).toFixed(0)}%)</span><span>{eur(t.ivaValue)} €</span></div>}
                 <div class="grand"><span>TOTAL</span><span>{eur(t.total)} €</span></div>
               </div>

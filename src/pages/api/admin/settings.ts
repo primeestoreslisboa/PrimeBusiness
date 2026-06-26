@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { setSetting, setSettingBool } from '../../../lib/settings';
+import { getDb } from '../../../lib/db';
 
 export const POST: APIRoute = async ({ locals, request, redirect }) => {
   if (locals.user?.role !== 'admin') {
@@ -36,6 +37,12 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
     await setSetting('iva_rate', ivaRate.toString());
     await setSetting('agendamento_intervalo_horas', intervaloHoras.toString());
     await setSetting('margem_venda_pct', margemVenda.toString());
+    // Recalcula o preço de venda de todo o catálogo com a nova margem (produtos com custo definido).
+    await getDb()`
+      UPDATE servicos
+      SET preco = ROUND(custo * ${margemVenda} / 100.0, 2)
+      WHERE custo IS NOT NULL
+    `;
     await setSetting('booking_notify_emails', bookingNotifyEmails);
     await setSetting('booking_notify_whatsapp_numbers', bookingNotifyWhatsappNumbers);
     await setSetting('booking_notify_whatsapp_callmebot_apikey', bookingNotifyWhatsappCallmebotApiKey);
