@@ -11,12 +11,9 @@ import { sendOrcamentoDiretoEmail, generateOrcamentoDiretoWhatsAppLink } from '.
 import { parseItens, parseIncludeIva } from './index';
 
 function getBaseUrl(request: Request) {
-  const origin = new URL(request.url).origin;
-  // Em dev (localhost) usa o próprio host para os links serem testáveis;
-  // em produção usa o PUBLIC_SITE_URL configurado (ou o próprio origin).
-  if (/localhost|127\.0\.0\.1/.test(origin)) return origin.replace(/\/+$/, '');
-  const configured = (import.meta.env.PUBLIC_SITE_URL || process.env.PUBLIC_SITE_URL || '').trim();
-  return (configured || origin).replace(/\/+$/, '');
+  // Usa sempre o host real do pedido (correto em dev e em produção,
+  // independentemente do PUBLIC_SITE_URL, que pode estar desatualizado).
+  return new URL(request.url).origin.replace(/\/+$/, '');
 }
 
 export const POST: APIRoute = async ({ params, request, redirect }) => {
