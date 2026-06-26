@@ -8,11 +8,25 @@ import {
   loadOrcamento,
 } from '../../../lib/orcamentos';
 import { sendOrcamentoDiretoEmail, generateOrcamentoDiretoWhatsAppLink } from '../../../lib/email';
+import { shortenUrl } from '../../../lib/shortener';
+
+async function getOrCreateShortUrl(sql: any, orc: any, longUrl: string): Promise<string> {
+  if (orc.short_url) return orc.short_url;
+  const short = await shortenUrl(longUrl);
+  if (short && short !== longUrl) {
+    await sql`UPDATE orcamentos_diretos SET short_url=${short} WHERE id=${orc.id}`;
+  }
+  return short;
+}
 import { parseItens, parseIncludeIva } from './index';
 
 function getBaseUrl(request: Request) {
+  const origin = new URL(request.url).origin;
+  // Em dev (localhost) usa o próprio host para os links serem testáveis;
+  // em produção usa o PUBLIC_SITE_URL configurado (ou o próprio origin).
+  if (/localhost|127\.0\.0\.1/.test(origin)) return origin.replace(/\/+$/, '');
   const configured = (import.meta.env.PUBLIC_SITE_URL || process.env.PUBLIC_SITE_URL || '').trim();
-  return (configured || new URL(request.url).origin).replace(/\/+$/, '');
+  return (configured || origin).replace(/\/+$/, '');
 }
 
 export const POST: APIRoute = async ({ params, request, redirect }) => {
@@ -103,7 +117,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
 
       try {
         const pdfBuffer = await buildOrcamentoPdf(fresh.orc, fresh.itens, baseUrl, company);
-        const viewUrl = `${baseUrl}/orcamento/ver/${fresh.orc.public_token}`;
+        const viewUrl = await getOrCreateShortUrl(sql, fresh.orc, `${baseUrl}/p/${fresh.orc.public_token}`);
         await sendOrcamentoDiretoEmail({
           toEmail: targetEmail,
           toName: fresh.orc.cliente_nome,
@@ -133,7 +147,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
 
       const baseUrl = getBaseUrl(request);
       const company = await getCompanyInfo();
-      const viewUrl = `${baseUrl}/orcamento/ver/${orc.public_token}`;
+      const viewUrl = await getOrCreateShortUrl(sql, orc, `${baseUrl}/p/${orc.public_token}`);
       const whatsappUrl = generateOrcamentoDiretoWhatsAppLink({
         telefone: targetPhone,
         numero: orc.numero || `ORC-${orc.id}`,

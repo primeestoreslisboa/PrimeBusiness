@@ -7,11 +7,20 @@ import { getAgendamentoIntervaloHoras } from '../../lib/settings';
 
 const user = Astro.locals.user;
 const sql = getDb();
-const orcamentos = await sql`
-  SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
-  FROM orcamentos_diretos
-  ORDER BY created_at DESC
-`;
+const statusFilter = Astro.url.searchParams.get('status') || '';
+const validStatus = ['rascunho', 'enviado', 'aprovado', 'rejeitado'].includes(statusFilter) ? statusFilter : '';
+const orcamentos = validStatus
+  ? await sql`
+      SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
+      FROM orcamentos_diretos
+      WHERE status = ${validStatus}
+      ORDER BY created_at DESC
+    `
+  : await sql`
+      SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
+      FROM orcamentos_diretos
+      ORDER BY created_at DESC
+    `;
 const chamadosAbertos = await sql`
   SELECT id, nome, cidade, horario_agendado
   FROM chamados
@@ -60,6 +69,21 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-bold text-gray-800">Orçamentos</h1>
       <a href="/orcamentos/novo" class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">+ Novo</a>
+    </div>
+
+    <div class="flex gap-2 overflow-x-auto pb-1 mb-4">
+      {[
+        { v: '', label: 'Todos' },
+        { v: 'rascunho', label: 'Rascunho' },
+        { v: 'enviado', label: 'Enviado' },
+        { v: 'aprovado', label: 'Aprovado' },
+        { v: 'rejeitado', label: 'Rejeitado' },
+      ].map(f => (
+        <a
+          href={f.v ? `?status=${f.v}` : '/orcamentos'}
+          class={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition ${validStatus === f.v ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+        >{f.label}</a>
+      ))}
     </div>
 
     {success && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">✅ {successMessages[success] ?? 'Operação realizada com sucesso.'}</div>}

@@ -8,11 +8,11 @@ function getBaseUrl(request: Request) {
 }
 
 export const GET: APIRoute = async ({ params, request }) => {
-  const token = params.token?.toString() || '';
-  if (!token) return new Response('Não encontrado', { status: 404 });
+  const code = params.code?.toString() || '';
+  if (!code) return new Response('Não encontrado', { status: 404 });
 
   const sql = getDb();
-  const loaded = await loadOrcamentoByToken(sql, token);
+  const loaded = await loadOrcamentoByToken(sql, code);
   if (!loaded) return new Response('Orçamento não encontrado', { status: 404 });
 
   const baseUrl = getBaseUrl(request);

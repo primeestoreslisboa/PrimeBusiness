@@ -79,6 +79,9 @@ await run('Campo desconto_tipo', sql`
 await run('Campo desconto_valor', sql`
   ALTER TABLE orcamentos_diretos ADD COLUMN IF NOT EXISTS desconto_valor DECIMAL(10,2) DEFAULT 0
 `);
+await run('Campo short_url', sql`
+  ALTER TABLE orcamentos_diretos ADD COLUMN IF NOT EXISTS short_url VARCHAR(255)
+`);
 
 const tables = await sql`SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename`;
 console.log(`\n📋 Tabelas na BD: ${tables.map(t => t.tablename).join(', ')}`);

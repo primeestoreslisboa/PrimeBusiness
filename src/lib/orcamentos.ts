@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { getCompanyInfo, type CompanyInfo } from './settings';
 import { generateOrcamentoPdf, type OrcamentoPdfData } from './pdf';
 import { LOGO_BUFFER } from './logo-data';
@@ -39,8 +39,12 @@ export type OrcamentoItemRow = {
   ordem: number;
 };
 
+const CODE_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789'; // sem caracteres ambíguos
 export function genToken() {
-  return randomUUID();
+  const bytes = randomBytes(10);
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+  return s;
 }
 
 export function buildNumero(id: number, date: Date) {

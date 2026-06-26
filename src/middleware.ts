@@ -2,7 +2,7 @@ import { defineMiddleware } from 'astro:middleware';
 import { getTokenFromCookie, verifyToken } from './lib/auth';
 import { getDb } from './lib/db';
 
-const PUBLIC_ROUTES = ['/login', '/api/auth/login', '/orcamento/aceitar', '/api/orcamento/aceitar', '/api/mbway/callback', '/orcamento/ver', '/orcamento/pdf'];
+const PUBLIC_ROUTES = ['/login', '/api/auth/login', '/orcamento/aceitar', '/api/orcamento/aceitar', '/api/mbway/callback', '/p/'];
 
 function isPublicPath(pathname: string) {
   if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) return true;

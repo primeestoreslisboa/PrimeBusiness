@@ -1,11 +1,11 @@
 ---
-import { getDb } from '../../../lib/db';
-import { getCompanyInfo } from '../../../lib/settings';
-import { loadOrcamentoByToken, num, computeTotals } from '../../../lib/orcamentos';
+import { getDb } from '../../lib/db';
+import { getCompanyInfo } from '../../lib/settings';
+import { loadOrcamentoByToken, num, computeTotals } from '../../lib/orcamentos';
 
 const sql = getDb();
-const { token } = Astro.params;
-const loaded = token ? await loadOrcamentoByToken(sql, token) : null;
+const { code } = Astro.params;
+const loaded = code ? await loadOrcamentoByToken(sql, code) : null;
 const company = await getCompanyInfo();
 
 const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -72,7 +72,7 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
             <strong>Validade:</strong> {loaded.orc.validade_dias} dias
           </div>
 
-          <a class="dl" href={`/orcamento/pdf/${token}`}>⬇ Descarregar PDF</a>
+          <a class="dl" href={`/p/${code}/pdf`}>⬇ Descarregar PDF</a>
 
           <div class="sect">DADOS DO CLIENTE</div>
           <div class="grid">
