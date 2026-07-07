@@ -206,7 +206,7 @@ function getMbWayStatusLabel(status?: string) {
       </div>
     )}
 
-    {chamado.status === 'em_andamento' && (
+    {!isLocked && (
       <div class="grid grid-cols-3 gap-2 mb-4">
         <form method="POST" action={`/api/chamados/${id}`} data-confirm="Tem certeza que deseja finalizar este chamado?">
           <input type="hidden" name="_method" value="PUT" />
