@@ -94,8 +94,12 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
 
     // ---------- ENVIAR EMAIL (PDF anexado) ----------
     if (action === 'send_email') {
-      const targetEmail = form.get('to_email')?.toString().trim() || orc.cliente_email || '';
-      if (!targetEmail) return redirect(`/orcamentos?error=no_email`);
+      const rawEmails = form.get('to_email')?.toString().trim() || orc.cliente_email || '';
+      const targetEmails = rawEmails
+        .split(/[;,]/)
+        .map((e) => e.trim())
+        .filter((e) => e.includes('@'));
+      if (targetEmails.length === 0) return redirect(`/orcamentos?error=no_email`);
 
       const baseUrl = getBaseUrl(request);
       const company = await getCompanyInfo();
@@ -106,7 +110,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
         const pdfBuffer = await buildOrcamentoPdf(fresh.orc, fresh.itens, baseUrl, company);
         const viewUrl = `${baseUrl}/p/${fresh.orc.public_token}`;
         await sendOrcamentoDiretoEmail({
-          toEmail: targetEmail,
+          toEmail: targetEmails,
           toName: fresh.orc.cliente_nome,
           numero: fresh.orc.numero || `ORC-${fresh.orc.id}`,
           total: Number(fresh.orc.total),

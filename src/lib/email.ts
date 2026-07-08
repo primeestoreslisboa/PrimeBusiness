@@ -29,7 +29,7 @@ type MailAttachment = { filename: string; content: Buffer };
  * Envia email via Resend (se RESEND_API_KEY definido) com fallback para Gmail/nodemailer.
  */
 async function deliver(params: {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   text?: string;
@@ -206,7 +206,7 @@ export async function sendOrcamentoEmail(params: {
 }
 
 export async function sendOrcamentoDiretoEmail(params: {
-  toEmail: string;
+  toEmail: string | string[];
   toName: string;
   numero: string;
   total: number;
