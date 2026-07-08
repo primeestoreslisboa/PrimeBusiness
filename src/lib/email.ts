@@ -1,9 +1,11 @@
 import nodemailer from 'nodemailer';
 import type { PaymentOptions } from './settings';
 
+const env = (k: string) => (import.meta.env as any)[k] || (process.env as any)[k];
+
 function getTransporter() {
-  const user = import.meta.env.EMAIL_USER || process.env.EMAIL_USER;
-  const pass = import.meta.env.EMAIL_PASS || process.env.EMAIL_PASS;
+  const user = env('EMAIL_USER');
+  const pass = env('EMAIL_PASS');
 
   if (!user || !pass) {
     throw new Error('EMAIL_USER e EMAIL_PASS nao estao definidos no .env');
@@ -13,6 +15,50 @@ function getTransporter() {
     service: 'gmail',
     auth: { user, pass },
   });
+}
+
+/** Endereço "De" — usa EMAIL_FROM (domínio verificado no Resend) ou o EMAIL_USER. */
+function buildFrom(empresa: string) {
+  const addr = env('EMAIL_FROM') || env('EMAIL_USER');
+  return addr ? `${empresa} <${addr}>` : empresa;
+}
+
+type MailAttachment = { filename: string; content: Buffer };
+
+/**
+ * Envia email via Resend (se RESEND_API_KEY definido) com fallback para Gmail/nodemailer.
+ */
+async function deliver(params: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  attachments?: MailAttachment[];
+  empresa?: string;
+}) {
+  const { to, subject, html, text, attachments } = params;
+  const empresa = params.empresa || 'PrimeBussines';
+  const from = buildFrom(empresa);
+  const resendKey = env('RESEND_API_KEY');
+
+  if (resendKey) {
+    const { Resend } = await import('resend');
+    const resend = new Resend(resendKey);
+    const { error } = await resend.emails.send({
+      from,
+      to,
+      subject,
+      html,
+      ...(text ? { text } : {}),
+      ...(attachments ? { attachments: attachments.map(a => ({ filename: a.filename, content: a.content })) } : {}),
+    } as any);
+    if (error) throw new Error((error as any)?.message || 'Erro ao enviar via Resend');
+    return;
+  }
+
+  // Fallback: Gmail/nodemailer
+  const transporter = getTransporter();
+  await transporter.sendMail({ from, to, subject, html, text, attachments });
 }
 
 function renderPaymentHtml(paymentOptions?: PaymentOptions) {
@@ -98,12 +144,9 @@ export async function sendOrcamentoEmail(params: {
 
   const paymentHtml = renderPaymentHtml(paymentOptions);
 
-  const fromUser = import.meta.env.EMAIL_USER || process.env.EMAIL_USER;
-  const transporter = getTransporter();
-
-  const info = await transporter.sendMail({
-    from: `"${empresa}" <${fromUser}>`,
+  await deliver({
     to: toEmail,
+    empresa,
     subject: `Orcamento #${orcamentoId} - ${empresa}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -160,8 +203,6 @@ export async function sendOrcamentoEmail(params: {
       </div>
     `,
   });
-
-  return info;
 }
 
 export async function sendOrcamentoDiretoEmail(params: {
@@ -174,12 +215,10 @@ export async function sendOrcamentoDiretoEmail(params: {
   empresa: string;
 }) {
   const { toEmail, toName, numero, total, pdfBuffer, viewUrl, empresa } = params;
-  const fromUser = import.meta.env.EMAIL_USER || process.env.EMAIL_USER;
-  const transporter = getTransporter();
 
-  const info = await transporter.sendMail({
-    from: `"${empresa}" <${fromUser}>`,
+  await deliver({
     to: toEmail,
+    empresa,
     subject: `Orçamento ${numero} - ${empresa}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -202,12 +241,9 @@ export async function sendOrcamentoDiretoEmail(params: {
       {
         filename: `${numero}.pdf`,
         content: pdfBuffer,
-        contentType: 'application/pdf',
       },
     ],
   });
-
-  return info;
 }
 
 export function generateOrcamentoDiretoWhatsAppLink(params: {
@@ -331,14 +367,12 @@ export async function sendAgendamentoEmail(params: {
     intervaloHoras = 3,
   } = params;
 
-  const fromUser = import.meta.env.EMAIL_USER || process.env.EMAIL_USER;
-  const transporter = getTransporter();
   const horarioFmt = formatDateTimeRangePt(horarioAgendado, intervaloHoras);
   const local = [morada, bairro, cidade, codigoPostal].filter(Boolean).join(', ');
 
-  const info = await transporter.sendMail({
-    from: `"${empresa}" <${fromUser}>`,
+  await deliver({
     to: toEmail,
+    empresa,
     subject: `Confirmacao de Agendamento #${chamadoId} - ${empresa}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto;">
@@ -365,8 +399,6 @@ export async function sendAgendamentoEmail(params: {
       `Se precisar de alterar o agendamento, responda a este email ou contacte-nos.\n\n` +
       `${empresa}`,
   });
-
-  return info;
 }
 
 export async function sendNovoAgendamentoInternoEmail(params: {
@@ -400,14 +432,12 @@ export async function sendNovoAgendamentoInternoEmail(params: {
     intervaloHoras = 3,
   } = params;
 
-  const fromUser = import.meta.env.EMAIL_USER || process.env.EMAIL_USER;
-  const transporter = getTransporter();
   const horarioFmt = formatDateTimeRangePt(horarioAgendado, intervaloHoras);
   const local = [morada, bairro, cidade, codigoPostal].filter(Boolean).join(', ');
 
-  return transporter.sendMail({
-    from: `"${empresa}" <${fromUser}>`,
+  return deliver({
     to: toEmail,
+    empresa,
     subject: `Novo agendamento recebido #${chamadoId}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto;">
