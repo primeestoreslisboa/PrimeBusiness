@@ -36,9 +36,13 @@ async function deliver(params: {
   attachments?: MailAttachment[];
   empresa?: string;
 }) {
-  const { to, subject, html, text, attachments } = params;
+  const { subject, html, text, attachments } = params;
   const empresa = params.empresa || 'PrimeBussines';
   const from = buildFrom(empresa);
+  // Aceita vários destinatários (string separada por ; ou , → array).
+  const to = Array.isArray(params.to)
+    ? params.to
+    : String(params.to).split(/[;,]/).map(e => e.trim()).filter(e => e.includes('@'));
   const resendKey = env('RESEND_API_KEY');
 
   if (resendKey) {
