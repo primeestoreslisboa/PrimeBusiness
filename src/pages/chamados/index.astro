@@ -2,7 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { getDb } from '../../lib/db';
 import { getIvaRate, getAgendamentoIntervaloHoras } from '../../lib/settings';
-import { timeRangeLabel } from '../../lib/horario';
+import { timeRangeLabel, dateTimeRangeLabel } from '../../lib/horario';
 
 const user = Astro.locals.user;
 const sql = getDb();
@@ -220,6 +220,18 @@ function buildDuplicateUrl(chamado: any) {
   params.set('cidade', String(chamado?.cidade ?? ''));
   return `/chamados/novo?${params.toString()}`;
 }
+
+function buildCopyText(c: any) {
+  const local = [c.morada, c.bairro, c.cidade, c.codigo_postal].filter(Boolean).join(', ');
+  return [
+    `Novo agendamento #${c.id}`,
+    `*Cliente*: ${c.nome ?? ''}`,
+    `*Telefone:* ${c.telefone ?? ''}`,
+    `*Horario:* ${dateTimeRangeLabel(c.horario_agendado, intervaloHoras)}`,
+    `*Morada:* ${local}`,
+    `*Descricao:* ${c.descricao ?? ''}`,
+  ].join('\n');
+}
 ---
 <Layout title="Chamados" user={user}>
   <div class="py-6">
@@ -344,6 +356,16 @@ function buildDuplicateUrl(chamado: any) {
                 </div>
               </a>
               <div class="absolute right-3 bottom-3 flex items-center gap-1">
+                <button
+                  type="button"
+                  class="copy-agendamento w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition"
+                  title="Copiar detalhes"
+                  data-copy={buildCopyText(c)}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 3h4" />
+                  </svg>
+                </button>
                 <a
                   href={duplicateUrl}
                   class="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-800 transition"
@@ -375,5 +397,33 @@ function buildDuplicateUrl(chamado: any) {
       </div>
     )}
   </div>
+
+  <script>
+    document.querySelectorAll('.copy-agendamento').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const text = btn.getAttribute('data-copy') || '';
+        let ok = false;
+        try {
+          await navigator.clipboard.writeText(text);
+          ok = true;
+        } catch {
+          // Fallback para contextos sem Clipboard API
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { ok = document.execCommand('copy'); } catch { ok = false; }
+          document.body.removeChild(ta);
+        }
+        const original = btn.innerHTML;
+        btn.textContent = ok ? '✓' : '✕';
+        setTimeout(() => { btn.innerHTML = original; }, 1200);
+      });
+    });
+  </script>
 </Layout>
 
