@@ -3,19 +3,30 @@ import { getDb } from '../../../lib/db';
 import { getIvaRate } from '../../../lib/settings';
 import { buildNumero, computeTotals, genToken } from '../../../lib/orcamentos';
 
-export type ParsedItem = { descricao: string; quantidade: number; preco_unitario: number; ordem: number };
+export type ParsedItem = { descricao: string; quantidade: number; preco_unitario: number; largura: number | null; altura: number | null; ordem: number };
 
 export function parseItens(form: FormData): ParsedItem[] {
   const descs = form.getAll('item_desc');
   const qtds = form.getAll('item_qtd');
   const precos = form.getAll('item_preco');
+  const largs = form.getAll('item_larg');
+  const alts = form.getAll('item_alt');
+  const parseDim = (v: FormDataEntryValue | undefined) => {
+    const n = Number.parseFloat((v?.toString() || '').replace(',', '.'));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
   const itens: ParsedItem[] = [];
   for (let i = 0; i < descs.length; i++) {
     const descricao = (descs[i]?.toString() || '').trim();
     if (!descricao) continue;
-    const quantidade = Math.max(0, Number.parseFloat((qtds[i]?.toString() || '1').replace(',', '.')) || 1);
+    const largura = parseDim(largs[i]);
+    const altura = parseDim(alts[i]);
+    // Se tiver medidas (m²), a quantidade é a área (L×A).
+    const quantidade = largura && altura
+      ? Math.round(largura * altura * 100) / 100
+      : Math.max(0, Number.parseFloat((qtds[i]?.toString() || '1').replace(',', '.')) || 1);
     const preco_unitario = Math.max(0, Number.parseFloat((precos[i]?.toString() || '0').replace(',', '.')) || 0);
-    itens.push({ descricao, quantidade, preco_unitario, ordem: itens.length });
+    itens.push({ descricao, quantidade, preco_unitario, largura, altura, ordem: itens.length });
   }
   return itens;
 }
@@ -84,8 +95,8 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
 
     for (const it of itens) {
       await sql`
-        INSERT INTO orcamento_direto_itens (orcamento_id, descricao, quantidade, preco_unitario, ordem)
-        VALUES (${orc.id}, ${it.descricao}, ${it.quantidade}, ${it.preco_unitario}, ${it.ordem})
+        INSERT INTO orcamento_direto_itens (orcamento_id, descricao, quantidade, preco_unitario, largura, altura, ordem)
+        VALUES (${orc.id}, ${it.descricao}, ${it.quantidade}, ${it.preco_unitario}, ${it.largura}, ${it.altura}, ${it.ordem})
       `;
     }
 

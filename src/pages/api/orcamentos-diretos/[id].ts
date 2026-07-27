@@ -82,8 +82,8 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       await sql`DELETE FROM orcamento_direto_itens WHERE orcamento_id=${id}`;
       for (const it of itens) {
         await sql`
-          INSERT INTO orcamento_direto_itens (orcamento_id, descricao, quantidade, preco_unitario, ordem)
-          VALUES (${id}, ${it.descricao}, ${it.quantidade}, ${it.preco_unitario}, ${it.ordem})
+          INSERT INTO orcamento_direto_itens (orcamento_id, descricao, quantidade, preco_unitario, largura, altura, ordem)
+          VALUES (${id}, ${it.descricao}, ${it.quantidade}, ${it.preco_unitario}, ${it.largura}, ${it.altura}, ${it.ordem})
         `;
       }
       return redirect(`/orcamentos/${id}/editar?success=updated`);

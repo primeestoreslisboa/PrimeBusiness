@@ -36,6 +36,8 @@ export type OrcamentoItemRow = {
   descricao: string;
   quantidade: string | number;
   preco_unitario: string | number;
+  largura: string | number | null;
+  altura: string | number | null;
   ordem: number;
 };
 
@@ -131,11 +133,18 @@ export async function buildOrcamentoPdf(
       telefone: orc.cliente_telefone,
       email: orc.cliente_email,
     },
-    itens: itens.map(it => ({
-      descricao: it.descricao,
-      quantidade: num(it.quantidade),
-      preco_unitario: num(it.preco_unitario),
-    })),
+    itens: itens.map(it => {
+      const larg = num(it.largura);
+      const alt = num(it.altura);
+      const medidas = larg > 0 && alt > 0
+        ? ` (${larg.toLocaleString('pt-PT')} × ${alt.toLocaleString('pt-PT')} m)`
+        : '';
+      return {
+        descricao: `${it.descricao}${medidas}`,
+        quantidade: num(it.quantidade),
+        preco_unitario: num(it.preco_unitario),
+      };
+    }),
     includeIva: !!orc.include_iva,
     ivaRate: num(orc.iva_rate),
     descontoTipo: orc.desconto_tipo || 'valor',

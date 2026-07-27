@@ -202,6 +202,7 @@ function getOrcamentoLabel(status?: string) {
 
 function getPaymentMethodLabel(method?: string | null) {
   if (!method) return '-';
+  if (method === 'nao_necessario') return 'Não necessário';
   if (method === 'cash') return 'Numerario';
   if (method === 'bank_transfer') return 'Transferencia bancaria';
   if (method === 'mbway') return 'MB WAY';
@@ -222,7 +223,7 @@ function buildDuplicateUrl(chamado: any) {
 }
 
 function buildCopyText(c: any) {
-  const local = [c.morada, c.bairro, c.cidade, c.codigo_postal].filter(Boolean).join(', ');
+  const local = [c.morada, c.bairro, c.codigo_postal, c.cidade].filter(Boolean).join(', ');
   return [
     `Novo agendamento #${c.id}`,
     `*Cliente*: ${c.nome ?? ''}`,
@@ -339,11 +340,14 @@ function buildCopyText(c: any) {
                     {c.status === 'concluido' && (
                       <div class={`mt-2 inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 border text-xs font-medium ${c.paid_at ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                         <span class={`inline-block w-2 h-2 rounded-full ${c.paid_at ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-                        <span class="uppercase tracking-wide">{c.paid_at ? 'Pago' : 'Pagamento pendente'}</span>
-                        {c.paid_at && (
+                        <span class="uppercase tracking-wide">{c.paid_at ? (c.payment_method === 'nao_necessario' ? 'Sem pagamento' : 'Pago') : 'Pagamento pendente'}</span>
+                        {c.paid_at && c.payment_method !== 'nao_necessario' && (
                           <span class="normal-case font-semibold">
                             | {getPaymentMethodLabel(c.payment_method)} | EUR {(Number.parseFloat(String(c.payment_amount ?? '0')) || 0).toFixed(2)}
                           </span>
+                        )}
+                        {c.paid_at && c.payment_method === 'nao_necessario' && (
+                          <span class="normal-case font-semibold">| Não necessário</span>
                         )}
                       </div>
                     )}

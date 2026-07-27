@@ -33,6 +33,8 @@ const orcDiretoStatus: Record<string, { label: string; cls: string }> = {
 };
 const eurFmt = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const intervaloHoras = await getAgendamentoIntervaloHoras(3);
+const diretosTotal = orcamentosDiretos.reduce((a: number, o: any) => a + (Number.parseFloat(String(o.total ?? '0')) || 0), 0);
+const pagamentoSugerido = Number.parseFloat(String(chamado.payment_amount ?? '')) || diretosTotal || 0;
 
 // Link para criar orçamento já com os dados do cliente pré-preenchidos e associado a este chamado.
 const novoOrcamentoUrl = (() => {
@@ -121,7 +123,9 @@ const paymentMethodLabelMap: Record<string, string> = {
   bank_transfer: 'Transferencia bancaria',
   mbway: 'MB WAY',
   other: 'Outro',
+  nao_necessario: 'Não necessário',
 };
+const semPagamento = chamado.payment_method === 'nao_necessario';
 const paymentMethodLabel = chamado.payment_method ? (paymentMethodLabelMap[chamado.payment_method] || chamado.payment_method) : '';
 function calcOrcamentoTotalComIva(o: any) {
   const baseTotal = Number.parseFloat(String(o?.total ?? '0')) || 0;
@@ -247,40 +251,40 @@ function getMbWayStatusLabel(status?: string) {
             <div class="flex items-center gap-2">
               <h2 class="font-semibold text-gray-800">Pagamento</h2>
               <span class={`text-[11px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide ${chamado.paid_at ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                {chamado.paid_at ? 'Pago' : 'Pendente'}
+                {chamado.paid_at ? (semPagamento ? 'Sem pagamento' : 'Pago') : 'Pendente'}
               </span>
             </div>
             {chamado.paid_at ? (
               <p class="text-sm text-gray-700 mt-1">
-                Pago em {fmt(chamado.paid_at)} | {paymentMethodLabel || '-'}
+                {semPagamento ? 'Marcado como não necessário' : `Pago em ${fmt(chamado.paid_at)} | ${paymentMethodLabel || '-'}`}
               </p>
             ) : (
               <p class="text-sm text-amber-800 mt-1 font-medium">Pagamento ainda nao confirmado.</p>
             )}
-            <div class="mt-2 rounded-lg bg-white/70 border border-white px-3 py-2">
-              <p class="text-xs text-gray-600">Valor de pagamento</p>
-              <p class={`text-lg font-bold ${chamado.paid_at ? 'text-emerald-700' : 'text-amber-700'}`}>
-                EUR {(Number.parseFloat(String(chamado.payment_amount ?? approvedOrcTotalFinal ?? 0)) || 0).toFixed(2)}
-              </p>
-              {approvedOrcsCount > 0 ? (
-                <p class="text-xs text-gray-600 mt-1">
-                  Orcamentos aprovados: {approvedOrcsCount} | Base de calculo: EUR {approvedOrcTotalFinal.toFixed(2)}
-                </p>
-              ) : (
-                <p class="text-xs text-yellow-700 mt-1">Sem orcamento aceite para base de pagamento.</p>
-              )}
-            </div>
+            {chamado.paid_at && !semPagamento && (
+              <div class="mt-2 rounded-lg bg-white/70 border border-white px-3 py-2">
+                <p class="text-xs text-gray-600">Valor pago</p>
+                <p class="text-lg font-bold text-emerald-700">EUR {(Number.parseFloat(String(chamado.payment_amount ?? 0)) || 0).toFixed(2)}</p>
+              </div>
+            )}
           </div>
-          <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <form method="POST" action={`/api/chamados/${id}`} onsubmit="return handlePaymentSubmit(this)">
+          <div class="mt-3 flex flex-col gap-2">
+            <form method="POST" action={`/api/chamados/${id}`} class="flex flex-col sm:flex-row sm:items-end gap-2">
               <input type="hidden" name="_method" value="PUT" />
               <input type="hidden" name="quick_status" value="confirmar_pagamento" />
-              <input type="hidden" name="payment_method" value={chamado.payment_method || ''} />
-              <button
-                type="submit"
-                disabled={approvedOrcsCount === 0}
-                class={`w-full sm:w-auto px-3 py-2 rounded-lg text-sm font-semibold transition ${approvedOrcsCount > 0 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-              >
+              <div>
+                <label class="block text-xs text-gray-600 mb-1">Método</label>
+                <select name="payment_method" required class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+                  {['cash','bank_transfer','mbway','other','nao_necessario'].map(m => (
+                    <option value={m} selected={chamado.payment_method === m}>{paymentMethodLabelMap[m] || m}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-gray-600 mb-1">Valor (€)</label>
+                <input type="number" name="payment_amount" step="0.01" min="0" value={pagamentoSugerido.toFixed(2)} class="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <button type="submit" class="px-3 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition">
                 {chamado.paid_at ? 'Atualizar Pagamento' : 'Confirmar Pagamento'}
               </button>
             </form>

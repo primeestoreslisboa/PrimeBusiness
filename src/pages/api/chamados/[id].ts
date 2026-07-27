@@ -77,31 +77,21 @@ async function handleUpdate(id: string, formData: FormData, redirect: (path: str
     }
 
     const paymentMethod = formData.get('payment_method')?.toString().trim() || '';
-    const allowedPaymentMethods = new Set(['cash', 'bank_transfer', 'mbway', 'other']);
+    const allowedPaymentMethods = new Set(['cash', 'bank_transfer', 'mbway', 'other', 'nao_necessario']);
     if (!paymentMethod || !allowedPaymentMethods.has(paymentMethod)) {
       return redirect(`/chamados/${id}?error=payment_method_required`);
     }
 
-    const approvedOrcamentos = await sql`
-      SELECT id, total, include_iva, iva_rate
-      FROM orcamentos
-      WHERE chamado_id = ${id} AND status = 'aprovado'
-      ORDER BY COALESCE(aceite_at, created_at) DESC
-    `;
-
-    if (!approvedOrcamentos.length) {
-      return redirect(`/chamados/${id}?error=no_approved_orcamento`);
+    // "Não necessário" → sem valor. Caso contrário usa o valor introduzido, ou soma dos orçamentos diretos.
+    let totalFinal = 0;
+    if (paymentMethod !== 'nao_necessario') {
+      const rawAmount = formData.get('payment_amount')?.toString().trim() || '';
+      totalFinal = Number.parseFloat(rawAmount.replace(',', '.'));
+      if (!Number.isFinite(totalFinal) || totalFinal < 0) {
+        const [dir] = await sql`SELECT COALESCE(SUM(total), 0) AS t FROM orcamentos_diretos WHERE chamado_id = ${id}`;
+        totalFinal = Number.parseFloat(String(dir?.t ?? '0')) || 0;
+      }
     }
-
-    const fallbackIvaRate = await getIvaRate(23);
-    const totalFinal = approvedOrcamentos.reduce((acc: number, orc: any) => {
-      const baseTotal = Number.parseFloat(String(orc.total ?? '0')) || 0;
-      const parsedIvaRate = Number.parseFloat(String(orc.iva_rate ?? '0'));
-      const ivaRate = orc.include_iva
-        ? (Number.isFinite(parsedIvaRate) && parsedIvaRate > 0 ? Math.min(100, Math.max(0, parsedIvaRate)) : fallbackIvaRate)
-        : 0;
-      return acc + (orc.include_iva ? baseTotal * (1 + ivaRate / 100) : baseTotal);
-    }, 0);
 
     await sql`
       UPDATE chamados
