@@ -43,6 +43,7 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
             value={c.id}
             selected={String(c.id) === selectedChamadoId}
             data-nome={c.nome ?? ''}
+            data-nif={c.nif ?? ''}
             data-telefone={c.telefone ?? ''}
             data-email={c.email ?? ''}
             data-morada={c.morada ?? ''}
@@ -294,13 +295,12 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
       const associar = !!chamadoSelect.value && !!opt;
       // Ao associar, carrega os dados do chamado; ao escolher "sem agendamento", limpa tudo.
       setField('cliente_nome', associar ? (opt.dataset.nome || '') : '');
+      setField('cliente_nif', associar ? (opt.dataset.nif || '') : '');
       setField('cliente_telefone', associar ? (opt.dataset.telefone || '') : '');
       setField('cliente_email', associar ? (opt.dataset.email || '') : '');
       setField('cliente_morada', associar ? (opt.dataset.morada || '') : '');
       setField('cliente_codigo_postal', associar ? (opt.dataset.codigo_postal || '') : '');
       setField('cliente_localidade', associar ? (opt.dataset.localidade || '') : '');
-      // O chamado não tem NIF; ao remover a associação limpamos também o NIF.
-      if (!associar) setField('cliente_nif', '');
     });
   }
 </script>

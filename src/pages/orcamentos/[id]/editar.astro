@@ -3,7 +3,7 @@ import Layout from '../../../layouts/Layout.astro';
 import OrcamentoForm from '../../../components/OrcamentoForm.astro';
 import { getDb } from '../../../lib/db';
 import { getIvaRate, getMargemVenda, calcPrecoVenda } from '../../../lib/settings';
-import { loadOrcamento, isLocked } from '../../../lib/orcamentos';
+import { loadOrcamento } from '../../../lib/orcamentos';
 
 const user = Astro.locals.user;
 const sql = getDb();
@@ -13,9 +13,6 @@ const loaded = await loadOrcamento(sql, id!);
 if (!loaded) return Astro.redirect('/orcamentos?error=not_found');
 const { orc, itens } = loaded;
 
-// Orçamentos fechados não são editáveis.
-if (isLocked(orc.status)) return Astro.redirect(`/orcamentos?error=locked`);
-
 const ivaRate = await getIvaRate(23);
 const margem = await getMargemVenda(400);
 const error = Astro.url.searchParams.get('error');
@@ -24,7 +21,7 @@ const produtosRaw = await sql`SELECT id, nome, custo, preco, unidade FROM servic
 const produtos = produtosRaw.map((p: any) => ({ id: p.id, nome: p.nome, unidade: p.unidade, venda: calcPrecoVenda(p.custo, margem, Number(p.preco)) }));
 
 let chamadosAbertos = await sql`
-  SELECT id, nome, telefone, email, morada, codigo_postal, cidade, horario_agendado
+  SELECT id, nome, nif, telefone, email, morada, codigo_postal, cidade, horario_agendado
   FROM chamados
   WHERE status IN ('pendente', 'em_andamento')
   ORDER BY horario_agendado DESC
@@ -33,7 +30,7 @@ let chamadosAbertos = await sql`
 // Garante que o chamado já associado aparece na lista, mesmo que já não esteja em aberto.
 if (orc.chamado_id && !chamadosAbertos.some((c: any) => String(c.id) === String(orc.chamado_id))) {
   const [assoc] = await sql`
-    SELECT id, nome, telefone, email, morada, codigo_postal, cidade, horario_agendado
+    SELECT id, nome, nif, telefone, email, morada, codigo_postal, cidade, horario_agendado
     FROM chamados WHERE id = ${orc.chamado_id} LIMIT 1
   `;
   if (assoc) chamadosAbertos = [assoc, ...chamadosAbertos];

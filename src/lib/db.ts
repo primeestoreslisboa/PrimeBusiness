@@ -46,6 +46,7 @@ export async function initDb() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `;
+  await sql`ALTER TABLE chamados ADD COLUMN IF NOT EXISTS nif VARCHAR(50)`;
   await sql`ALTER TABLE chamados ADD COLUMN IF NOT EXISTS cancel_reason TEXT`;
   await sql`ALTER TABLE chamados ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP`;
   await sql`ALTER TABLE chamados ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)`;

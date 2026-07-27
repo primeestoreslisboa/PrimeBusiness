@@ -19,6 +19,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   try {
     const formData = await request.formData();
     const nome = formData.get('nome')?.toString().trim();
+    const nif = formData.get('nif')?.toString().trim() || null;
     const telefone = formData.get('telefone')?.toString().trim();
     const email = formData.get('email')?.toString().trim() || null;
     const morada = formData.get('morada')?.toString().trim();
@@ -49,8 +50,8 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     }
 
     const [chamado] = await sql`
-      INSERT INTO chamados (nome, telefone, email, morada, bairro, cidade, codigo_postal, descricao, horario_agendado, tecnico_id)
-      VALUES (${nome}, ${telefone}, ${email}, ${morada}, ${bairro}, ${cidade}, ${codigo_postal}, ${descricao}, ${horario_agendado}, ${tecnico_id ? parseInt(tecnico_id) : null})
+      INSERT INTO chamados (nome, nif, telefone, email, morada, bairro, cidade, codigo_postal, descricao, horario_agendado, tecnico_id)
+      VALUES (${nome}, ${nif}, ${telefone}, ${email}, ${morada}, ${bairro}, ${cidade}, ${codigo_postal}, ${descricao}, ${horario_agendado}, ${tecnico_id ? parseInt(tecnico_id) : null})
       RETURNING id
     `;
 

@@ -4,7 +4,6 @@ import { getCompanyInfo, getIvaRate } from '../../../lib/settings';
 import {
   buildOrcamentoPdf,
   computeTotals,
-  isLocked,
   loadOrcamento,
 } from '../../../lib/orcamentos';
 import { sendOrcamentoDiretoEmail, generateOrcamentoDiretoWhatsAppLink } from '../../../lib/email';
@@ -36,8 +35,6 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
 
     // ---------- EDITAR ----------
     if (action === 'update') {
-      if (isLocked(orc.status)) return redirect(`/orcamentos?error=locked`);
-
       const cliente_nome = (form.get('cliente_nome')?.toString() || '').trim();
       if (!cliente_nome) return redirect(`/orcamentos/${id}/editar?error=validation`);
 
@@ -168,16 +165,17 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       const chamadoId = form.get('chamado_id')?.toString().trim();
       if (!chamadoId) return redirect(`/orcamentos?error=no_chamado`);
       const [chamado] = await sql`
-        SELECT id, status, morada, codigo_postal, cidade FROM chamados WHERE id = ${chamadoId} LIMIT 1
+        SELECT id, status, nif, morada, codigo_postal, cidade FROM chamados WHERE id = ${chamadoId} LIMIT 1
       `;
       if (!chamado) return redirect(`/orcamentos?error=no_chamado`);
       if (chamado.status !== 'pendente' && chamado.status !== 'em_andamento') {
         return redirect(`/orcamentos?error=chamado_fechado`);
       }
-      // Ao associar, a morada do orçamento passa a refletir a do chamado.
+      // Ao associar, os dados do orçamento passam a refletir os do chamado.
       await sql`
         UPDATE orcamentos_diretos
         SET chamado_id=${chamadoId},
+            cliente_nif=${chamado.nif ?? null},
             cliente_morada=${chamado.morada ?? null},
             cliente_codigo_postal=${chamado.codigo_postal ?? null},
             cliente_localidade=${chamado.cidade ?? null},
@@ -209,9 +207,9 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
         (orc.observacoes ? `\n\nObservações: ${orc.observacoes}` : '');
 
       const [chamado] = await sql`
-        INSERT INTO chamados (nome, telefone, email, morada, cidade, codigo_postal, descricao, horario_agendado, status)
+        INSERT INTO chamados (nome, nif, telefone, email, morada, cidade, codigo_postal, descricao, horario_agendado, status)
         VALUES (
-          ${orc.cliente_nome}, ${telefone}, ${orc.cliente_email}, ${morada}, ${cidade},
+          ${orc.cliente_nome}, ${orc.cliente_nif ?? null}, ${telefone}, ${orc.cliente_email}, ${morada}, ${cidade},
           ${orc.cliente_codigo_postal}, ${descricao}, ${horario}, 'pendente'
         )
         RETURNING id

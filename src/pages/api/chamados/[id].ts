@@ -154,6 +154,7 @@ async function handleUpdate(id: string, formData: FormData, redirect: (path: str
   }
 
   const nome = formData.get('nome')?.toString().trim();
+  const nif = formData.get('nif')?.toString().trim() || null;
   const telefone = formData.get('telefone')?.toString().trim();
   const email = formData.get('email')?.toString().trim() || null;
   const morada = formData.get('morada')?.toString().trim();
@@ -181,7 +182,7 @@ async function handleUpdate(id: string, formData: FormData, redirect: (path: str
 
   await sql`
     UPDATE chamados SET
-      nome = ${nome}, telefone = ${telefone}, email = ${email},
+      nome = ${nome}, nif = ${nif}, telefone = ${telefone}, email = ${email},
       morada = ${morada}, bairro = ${bairro}, cidade = ${cidade},
       codigo_postal = ${codigo_postal}, descricao = ${descricao},
       horario_agendado = ${horario_agendado}, status = ${status},

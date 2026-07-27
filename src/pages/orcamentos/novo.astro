@@ -10,7 +10,7 @@ const error = Astro.url.searchParams.get('error');
 const ivaRate = await getIvaRate(23);
 const margem = await getMargemVenda(400);
 const chamadosAbertos = await sql`
-  SELECT id, nome, telefone, email, morada, codigo_postal, cidade, horario_agendado
+  SELECT id, nome, nif, telefone, email, morada, codigo_postal, cidade, horario_agendado
   FROM chamados
   WHERE status IN ('pendente', 'em_andamento')
   ORDER BY horario_agendado DESC
@@ -23,6 +23,7 @@ const params = Astro.url.searchParams;
 const chamadoId = params.get('chamado_id');
 const prefill = {
   cliente_nome: params.get('cliente_nome') ?? '',
+  cliente_nif: params.get('cliente_nif') ?? '',
   cliente_telefone: params.get('cliente_telefone') ?? '',
   cliente_email: params.get('cliente_email') ?? '',
   cliente_morada: params.get('cliente_morada') ?? '',
