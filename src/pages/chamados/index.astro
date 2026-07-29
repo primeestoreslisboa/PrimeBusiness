@@ -223,7 +223,7 @@ function buildDuplicateUrl(chamado: any) {
 }
 
 function buildCopyText(c: any) {
-  const local = [c.morada, c.bairro, c.codigo_postal, c.cidade].filter(Boolean).join(', ');
+  const local = [c.morada, c.codigo_postal, c.bairro, c.cidade].filter(Boolean).join(', ');
   return [
     `Novo agendamento #${c.id}`,
     `*Cliente*: ${c.nome ?? ''}`,
