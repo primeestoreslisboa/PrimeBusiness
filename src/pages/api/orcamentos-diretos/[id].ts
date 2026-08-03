@@ -7,7 +7,7 @@ import {
   loadOrcamento,
 } from '../../../lib/orcamentos';
 import { sendOrcamentoDiretoEmail, generateOrcamentoDiretoWhatsAppLink } from '../../../lib/email';
-import { parseItens, parseIncludeIva } from './index';
+import { parseItens, parseIncludeIva, parseFaturas } from './index';
 
 function getBaseUrl(request: Request) {
   // Usa sempre o host real do pedido (correto em dev e em produção,
@@ -84,6 +84,15 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
         await sql`
           INSERT INTO orcamento_direto_itens (orcamento_id, descricao, quantidade, preco_unitario, largura, altura, ordem)
           VALUES (${id}, ${it.descricao}, ${it.quantidade}, ${it.preco_unitario}, ${it.largura}, ${it.altura}, ${it.ordem})
+        `;
+      }
+
+      const faturas = parseFaturas(form);
+      await sql`DELETE FROM orcamento_faturas WHERE orcamento_id=${id}`;
+      for (const f of faturas) {
+        await sql`
+          INSERT INTO orcamento_faturas (orcamento_id, numero_fatura, fornecedor, data_compra, valor_total, ordem)
+          VALUES (${id}, ${f.numero_fatura}, ${f.fornecedor}, ${f.data_compra}, ${f.valor_total}, ${f.ordem})
         `;
       }
       return redirect(`/orcamentos/${id}/editar?success=updated`);

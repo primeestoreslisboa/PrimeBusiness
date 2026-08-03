@@ -41,6 +41,16 @@ export type OrcamentoItemRow = {
   ordem: number;
 };
 
+export type OrcamentoFaturaRow = {
+  id: number;
+  orcamento_id: number;
+  numero_fatura: string | null;
+  fornecedor: string | null;
+  data_compra: string | null;
+  valor_total: string | number | null;
+  ordem: number;
+};
+
 const CODE_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789'; // sem caracteres ambíguos
 export function genToken() {
   const bytes = randomBytes(10);
@@ -82,7 +92,10 @@ export async function loadOrcamento(sql: any, id: string | number) {
   const itens = await sql`
     SELECT * FROM orcamento_direto_itens WHERE orcamento_id = ${id} ORDER BY ordem ASC, id ASC
   `;
-  return { orc: orc as OrcamentoDiretoRow, itens: itens as OrcamentoItemRow[] };
+  const faturas = await sql`
+    SELECT * FROM orcamento_faturas WHERE orcamento_id = ${id} ORDER BY ordem ASC, id ASC
+  `;
+  return { orc: orc as OrcamentoDiretoRow, itens: itens as OrcamentoItemRow[], faturas: faturas as OrcamentoFaturaRow[] };
 }
 
 export async function loadOrcamentoByToken(sql: any, token: string) {

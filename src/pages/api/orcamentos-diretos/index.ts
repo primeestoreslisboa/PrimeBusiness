@@ -31,6 +31,28 @@ export function parseItens(form: FormData): ParsedItem[] {
   return itens;
 }
 
+export type ParsedFatura = { numero_fatura: string | null; fornecedor: string | null; data_compra: string | null; valor_total: number; ordem: number };
+
+export function parseFaturas(form: FormData): ParsedFatura[] {
+  const nums = form.getAll('fatura_numero');
+  const forns = form.getAll('fatura_fornecedor');
+  const datas = form.getAll('fatura_data');
+  const valores = form.getAll('fatura_valor');
+  const n = Math.max(nums.length, forns.length, datas.length, valores.length);
+  const faturas: ParsedFatura[] = [];
+  for (let i = 0; i < n; i++) {
+    const numero_fatura = (nums[i]?.toString() || '').trim() || null;
+    const fornecedor = (forns[i]?.toString() || '').trim() || null;
+    const dataRaw = (datas[i]?.toString() || '').trim();
+    const data_compra = dataRaw || null;
+    const valor_total = Math.max(0, Number.parseFloat((valores[i]?.toString() || '0').replace(',', '.')) || 0);
+    // Ignora linhas totalmente vazias.
+    if (!numero_fatura && !fornecedor && !data_compra && valor_total === 0) continue;
+    faturas.push({ numero_fatura, fornecedor, data_compra, valor_total, ordem: faturas.length });
+  }
+  return faturas;
+}
+
 export function parseIncludeIva(raw: FormDataEntryValue | null | undefined) {
   if (raw == null) return false;
   const v = String(raw).trim().toLowerCase();
@@ -97,6 +119,14 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
       await sql`
         INSERT INTO orcamento_direto_itens (orcamento_id, descricao, quantidade, preco_unitario, largura, altura, ordem)
         VALUES (${orc.id}, ${it.descricao}, ${it.quantidade}, ${it.preco_unitario}, ${it.largura}, ${it.altura}, ${it.ordem})
+      `;
+    }
+
+    const faturas = parseFaturas(form);
+    for (const f of faturas) {
+      await sql`
+        INSERT INTO orcamento_faturas (orcamento_id, numero_fatura, fornecedor, data_compra, valor_total, ordem)
+        VALUES (${orc.id}, ${f.numero_fatura}, ${f.fornecedor}, ${f.data_compra}, ${f.valor_total}, ${f.ordem})
       `;
     }
 
