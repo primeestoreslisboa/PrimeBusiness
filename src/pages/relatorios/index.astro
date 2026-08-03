@@ -1,0 +1,201 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getDb } from '../../lib/db';
+import { num } from '../../lib/orcamentos';
+
+const user = Astro.locals.user;
+// Relatório com dados de custo/lucro: apenas administradores.
+if (user?.role !== 'admin') return Astro.redirect('/dashboard');
+
+const sql = getDb();
+
+// Intervalo de datas. Padrão: mês atual.
+const now = new Date();
+const pad = (n: number) => String(n).padStart(2, '0');
+const firstOfMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+const lastOfMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+const lastOfMonth = `${lastOfMonthDate.getFullYear()}-${pad(lastOfMonthDate.getMonth() + 1)}-${pad(lastOfMonthDate.getDate())}`;
+
+const isDate = (v: string | null) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const deParam = Astro.url.searchParams.get('de');
+const ateParam = Astro.url.searchParams.get('ate');
+const de = isDate(deParam) ? deParam! : firstOfMonth;
+const ate = isDate(ateParam) ? ateParam! : lastOfMonth;
+
+const rows = await sql`
+  SELECT
+    o.id,
+    o.numero,
+    o.cliente_nome,
+    o.total,
+    o.created_at,
+    COALESCE((SELECT SUM(f.valor_total) FROM orcamento_faturas f WHERE f.orcamento_id = o.id), 0) AS custo_material
+  FROM orcamentos_diretos o
+  WHERE o.status = 'finalizado'
+    AND o.created_at >= ${de}::date
+    AND o.created_at < (${ate}::date + INTERVAL '1 day')
+  ORDER BY o.created_at ASC, o.id ASC
+`;
+
+type Linha = {
+  numero: string | null;
+  cliente_nome: string;
+  data: string;
+  total: number;
+  custo: number;
+  lucro: number;
+};
+
+const linhas: Linha[] = rows.map((r: any) => {
+  const total = num(r.total);
+  const custo = num(r.custo_material);
+  return {
+    numero: r.numero,
+    cliente_nome: r.cliente_nome,
+    data: new Date(r.created_at).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Lisbon' }),
+    total,
+    custo,
+    lucro: total - custo,
+  };
+});
+
+const totOrcamento = linhas.reduce((a, l) => a + l.total, 0);
+const totCusto = linhas.reduce((a, l) => a + l.custo, 0);
+const totLucro = linhas.reduce((a, l) => a + l.lucro, 0);
+
+const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+
+// Dados para exportação (client-side).
+const exportData = {
+  de,
+  ate,
+  linhas: linhas.map(l => ({
+    numero: l.numero ?? '',
+    cliente: l.cliente_nome,
+    data: l.data,
+    total: l.total,
+    custo: l.custo,
+    lucro: l.lucro,
+  })),
+  totais: { total: totOrcamento, custo: totCusto, lucro: totLucro },
+};
+---
+<Layout title="Relatórios" user={user}>
+  <div class="py-6 pb-24">
+    <h1 class="text-2xl font-bold text-gray-800 mb-6">Relatório de Orçamentos Finalizados</h1>
+
+    <!-- FILTROS -->
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
+      <div class="flex flex-wrap gap-2 mb-3">
+        <a href="/relatorios" class={`px-3 py-1.5 rounded-full text-xs font-medium transition ${(de === firstOfMonth && ate === lastOfMonth) ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Mês atual</a>
+      </div>
+      <form method="GET" class="flex flex-wrap items-end gap-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">De</label>
+          <input type="date" name="de" value={de} class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Até</label>
+          <input type="date" name="ate" value={ate} class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none" />
+        </div>
+        <button type="submit" class="bg-red-700 hover:bg-red-800 text-white text-sm font-medium px-4 py-2 rounded-lg transition">Gerar</button>
+        <button type="button" id="export-excel" class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition ml-auto">Exportar para Excel</button>
+      </form>
+    </div>
+
+    <!-- RESUMO -->
+    <div class="grid grid-cols-3 gap-3 mb-4">
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Total Orçamentos</p>
+        <p class="text-lg font-bold text-gray-800 mt-1">{eur(totOrcamento)} €</p>
+      </div>
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Custo Material</p>
+        <p class="text-lg font-bold text-gray-800 mt-1">{eur(totCusto)} €</p>
+      </div>
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Lucro</p>
+        <p class="text-lg font-bold text-green-700 mt-1">{eur(totLucro)} €</p>
+      </div>
+    </div>
+
+    <!-- TABELA -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+      {linhas.length === 0 ? (
+        <p class="p-8 text-center text-gray-500 text-sm">Sem orçamentos finalizados neste período.</p>
+      ) : (
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-50 text-gray-600 text-left">
+              <th class="px-4 py-3 font-semibold">Cliente</th>
+              <th class="px-4 py-3 font-semibold text-right">Valor Orçamento</th>
+              <th class="px-4 py-3 font-semibold text-right">Custo Material</th>
+              <th class="px-4 py-3 font-semibold text-right">Lucro</th>
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map(l => (
+              <tr class="border-t border-gray-100">
+                <td class="px-4 py-3">
+                  <span class="font-medium text-gray-800">{l.cliente_nome}</span>
+                  {l.numero && <span class="block text-xs text-gray-400">{l.numero} · {l.data}</span>}
+                </td>
+                <td class="px-4 py-3 text-right text-gray-700">{eur(l.total)} €</td>
+                <td class="px-4 py-3 text-right text-gray-700">{l.custo > 0 ? `${eur(l.custo)} €` : '—'}</td>
+                <td class="px-4 py-3 text-right font-semibold text-green-700">{eur(l.lucro)} €</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr class="border-t-2 border-gray-200 bg-gray-50 font-bold text-gray-800">
+              <td class="px-4 py-3">Totais</td>
+              <td class="px-4 py-3 text-right">{eur(totOrcamento)} €</td>
+              <td class="px-4 py-3 text-right">{eur(totCusto)} €</td>
+              <td class="px-4 py-3 text-right text-green-700">{eur(totLucro)} €</td>
+            </tr>
+          </tfoot>
+        </table>
+      )}
+    </div>
+  </div>
+
+  <script type="application/json" id="report-data" set:html={JSON.stringify(exportData)}></script>
+  <script>
+    const dataEl = document.getElementById('report-data');
+    const report = dataEl ? JSON.parse(dataEl.textContent || '{}') : { linhas: [], totais: {}, de: '', ate: '' };
+
+    function euNum(n: number) {
+      // Formato PT: vírgula decimal, sem separador de milhares (para o Excel interpretar como número).
+      return (Math.round((Number(n) || 0) * 100) / 100).toFixed(2).replace('.', ',');
+    }
+    function esc(v: string) {
+      const s = String(v ?? '');
+      // Envolve em aspas se contiver o separador, aspas ou quebra de linha.
+      return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    }
+
+    document.getElementById('export-excel')?.addEventListener('click', () => {
+      const lines: string[] = [];
+      lines.push('sep=;');
+      lines.push(['Cliente', 'Nº Orçamento', 'Data', 'Valor Orçamento (€)', 'Custo Material (€)', 'Lucro (€)'].join(';'));
+      for (const l of report.linhas) {
+        lines.push([
+          esc(l.cliente), esc(l.numero), esc(l.data),
+          euNum(l.total), euNum(l.custo), euNum(l.lucro),
+        ].join(';'));
+      }
+      lines.push(['Totais', '', '', euNum(report.totais.total), euNum(report.totais.custo), euNum(report.totais.lucro)].join(';'));
+
+      const csv = '﻿' + lines.join('\r\n'); // BOM para acentos no Excel
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio-orcamentos-${report.de}_a_${report.ate}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</Layout>
