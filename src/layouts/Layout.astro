@@ -50,6 +50,15 @@ const isAdmin = user?.role === 'admin';
         </a>
 
         {isAdmin && (
+          <a href="/despesas" title="Despesas"
+             class={`p-2 rounded-lg transition ${path.startsWith('/despesas') ? 'bg-red-900' : 'hover:bg-red-800'}`}>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2m-6-4h8a1 1 0 011 1v2a1 1 0 01-1 1h-8a1 1 0 01-1-1v-2a1 1 0 011-1z"/>
+            </svg>
+          </a>
+        )}
+
+        {isAdmin && (
           <a href="/relatorios" title="Relatórios"
              class={`p-2 rounded-lg transition ${path.startsWith('/relatorios') ? 'bg-red-900' : 'hover:bg-red-800'}`}>
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

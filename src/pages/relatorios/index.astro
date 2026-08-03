@@ -63,6 +63,34 @@ const totOrcamento = linhas.reduce((a, l) => a + l.total, 0);
 const totCusto = linhas.reduce((a, l) => a + l.custo, 0);
 const totLucro = linhas.reduce((a, l) => a + l.lucro, 0);
 
+// Despesas gerais (sem orçamento) no mesmo período.
+const despesasRows = await sql`
+  SELECT id, data_despesa, descricao, fornecedor, numero_fatura, categoria, valor
+  FROM despesas
+  WHERE data_despesa >= ${de}::date AND data_despesa <= ${ate}::date
+  ORDER BY data_despesa ASC, id ASC
+`;
+const despesas = despesasRows.map((d: any) => ({
+  data: new Date(d.data_despesa).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Lisbon' }),
+  descricao: d.descricao as string,
+  fornecedor: (d.fornecedor ?? '') as string,
+  numero_fatura: (d.numero_fatura ?? '') as string,
+  categoria: (d.categoria ?? 'Outros') as string,
+  valor: num(d.valor),
+}));
+const totDespesas = despesas.reduce((a, d) => a + d.valor, 0);
+
+// Despesas agrupadas por categoria (para o resumo).
+const despesasPorCategoria = Object.entries(
+  despesas.reduce((acc: Record<string, number>, d) => {
+    acc[d.categoria] = (acc[d.categoria] || 0) + d.valor;
+    return acc;
+  }, {}),
+).sort((a, b) => b[1] - a[1]);
+
+// Resultado líquido = lucro dos orçamentos − despesas gerais do período.
+const resultadoLiquido = totLucro - totDespesas;
+
 const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
 // Dados para exportação (client-side).
@@ -78,6 +106,11 @@ const exportData = {
     lucro: l.lucro,
   })),
   totais: { total: totOrcamento, custo: totCusto, lucro: totLucro },
+  despesas: despesas.map(d => ({
+    data: d.data, descricao: d.descricao, fornecedor: d.fornecedor, numero_fatura: d.numero_fatura, categoria: d.categoria, valor: d.valor,
+  })),
+  totDespesas,
+  resultadoLiquido,
 };
 ---
 <Layout title="Relatórios" user={user}>
@@ -114,8 +147,21 @@ const exportData = {
         <p class="text-lg font-bold text-gray-800 mt-1">{eur(totCusto)} €</p>
       </div>
       <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
-        <p class="text-xs text-gray-500 uppercase tracking-wide">Lucro</p>
-        <p class="text-lg font-bold text-green-700 mt-1">{eur(totLucro)} €</p>
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Lucro Bruto</p>
+        <p class="text-lg font-bold text-gray-800 mt-1">{eur(totLucro)} €</p>
+      </div>
+    </div>
+
+    <!-- RESULTADO LÍQUIDO -->
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Despesas Gerais</p>
+        <p class="text-lg font-bold text-gray-800 mt-1">{eur(totDespesas)} €</p>
+      </div>
+      <div class={`rounded-xl p-4 shadow-sm border text-center ${resultadoLiquido >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Resultado Líquido</p>
+        <p class={`text-lg font-bold mt-1 ${resultadoLiquido >= 0 ? 'text-green-700' : 'text-red-700'}`}>{eur(resultadoLiquido)} €</p>
+        <p class="text-[10px] text-gray-400 mt-0.5">Lucro bruto − despesas gerais</p>
       </div>
     </div>
 
@@ -157,6 +203,56 @@ const exportData = {
         </table>
       )}
     </div>
+
+    <!-- DESPESAS GERAIS -->
+    <h2 class="text-lg font-bold text-gray-800 mt-8 mb-3">Despesas Gerais (sem orçamento)</h2>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+      {despesas.length === 0 ? (
+        <p class="p-8 text-center text-gray-500 text-sm">Sem despesas gerais neste período.</p>
+      ) : (
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-50 text-gray-600 text-left">
+              <th class="px-4 py-3 font-semibold">Descrição</th>
+              <th class="px-4 py-3 font-semibold">Categoria</th>
+              <th class="px-4 py-3 font-semibold text-right">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {despesas.map(d => (
+              <tr class="border-t border-gray-100">
+                <td class="px-4 py-3">
+                  <span class="font-medium text-gray-800">{d.descricao}</span>
+                  <span class="block text-xs text-gray-400">{d.data}{d.fornecedor ? ` · ${d.fornecedor}` : ''}{d.numero_fatura ? ` · Fatura ${d.numero_fatura}` : ''}</span>
+                </td>
+                <td class="px-4 py-3 text-gray-600">{d.categoria}</td>
+                <td class="px-4 py-3 text-right text-gray-700">{eur(d.valor)} €</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr class="border-t-2 border-gray-200 bg-gray-50 font-bold text-gray-800">
+              <td class="px-4 py-3" colspan="2">Total despesas</td>
+              <td class="px-4 py-3 text-right">{eur(totDespesas)} €</td>
+            </tr>
+          </tfoot>
+        </table>
+      )}
+    </div>
+
+    {despesasPorCategoria.length > 0 && (
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mt-3">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">Despesas por categoria</p>
+        <div class="space-y-1">
+          {despesasPorCategoria.map(([cat, val]) => (
+            <div class="flex justify-between text-sm">
+              <span class="text-gray-600">{cat}</span>
+              <span class="font-medium text-gray-800">{eur(val)} €</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
   </div>
 
   <script type="application/json" id="report-data" set:html={JSON.stringify(exportData)}></script>
@@ -185,6 +281,21 @@ const exportData = {
         ].join(';'));
       }
       lines.push(['Totais', '', '', euNum(report.totais.total), euNum(report.totais.custo), euNum(report.totais.lucro)].join(';'));
+
+      // Despesas gerais
+      lines.push('');
+      lines.push('DESPESAS GERAIS (sem orçamento)');
+      lines.push(['Data', 'Descrição', 'Nº Fatura', 'Fornecedor', 'Categoria', 'Valor (€)'].join(';'));
+      for (const d of (report.despesas || [])) {
+        lines.push([esc(d.data), esc(d.descricao), esc(d.numero_fatura), esc(d.fornecedor), esc(d.categoria), euNum(d.valor)].join(';'));
+      }
+      lines.push(['Total despesas', '', '', '', '', euNum(report.totDespesas)].join(';'));
+
+      // Resultado
+      lines.push('');
+      lines.push(['Lucro bruto (orçamentos)', euNum(report.totais.lucro)].join(';'));
+      lines.push(['Despesas gerais', euNum(report.totDespesas)].join(';'));
+      lines.push(['RESULTADO LÍQUIDO', euNum(report.resultadoLiquido)].join(';'));
 
       const csv = '﻿' + lines.join('\r\n'); // BOM para acentos no Excel
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
