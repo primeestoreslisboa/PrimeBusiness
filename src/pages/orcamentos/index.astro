@@ -7,20 +7,32 @@ import { getAgendamentoIntervaloHoras } from '../../lib/settings';
 
 const user = Astro.locals.user;
 const sql = getDb();
-const statusFilter = Astro.url.searchParams.get('status') || '';
-const validStatus = ['rascunho', 'enviado', 'aprovado', 'rejeitado'].includes(statusFilter) ? statusFilter : '';
-const orcamentos = validStatus
-  ? await sql`
-      SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
-      FROM orcamentos_diretos
-      WHERE status = ${validStatus}
-      ORDER BY created_at DESC
-    `
-  : await sql`
-      SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
-      FROM orcamentos_diretos
-      ORDER BY created_at DESC
-    `;
+// Filtro por estado. Padrão = "ativos" (tudo exceto finalizado/rejeitado).
+const statusFilter = Astro.url.searchParams.get('status') || 'ativos';
+const estadosSingulares = ['rascunho', 'enviado', 'aprovado', 'finalizado', 'rejeitado'];
+let orcamentos;
+if (statusFilter === 'ativos') {
+  orcamentos = await sql`
+    SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
+    FROM orcamentos_diretos
+    WHERE status NOT IN ('finalizado', 'rejeitado')
+    ORDER BY created_at DESC
+  `;
+} else if (estadosSingulares.includes(statusFilter)) {
+  orcamentos = await sql`
+    SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
+    FROM orcamentos_diretos
+    WHERE status = ${statusFilter}
+    ORDER BY created_at DESC
+  `;
+} else {
+  // 'todos' ou qualquer outro valor
+  orcamentos = await sql`
+    SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
+    FROM orcamentos_diretos
+    ORDER BY created_at DESC
+  `;
+}
 const chamadosAbertos = await sql`
   SELECT id, nome, cidade, horario_agendado
   FROM chamados
@@ -60,6 +72,7 @@ const statusInfo: Record<string, { label: string; cls: string }> = {
   rascunho: { label: 'Rascunho', cls: 'bg-gray-100 text-gray-600' },
   enviado: { label: 'Enviado', cls: 'bg-blue-100 text-blue-700' },
   aprovado: { label: 'Aprovado', cls: 'bg-green-100 text-green-700' },
+  finalizado: { label: 'Finalizado', cls: 'bg-emerald-100 text-emerald-800' },
   rejeitado: { label: 'Rejeitado', cls: 'bg-red-100 text-red-700' },
 };
 const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -73,15 +86,17 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
 
     <div class="flex gap-2 overflow-x-auto pb-1 mb-4">
       {[
-        { v: '', label: 'Todos' },
+        { v: 'ativos', label: 'Ativos' },
+        { v: 'todos', label: 'Todos' },
         { v: 'rascunho', label: 'Rascunho' },
         { v: 'enviado', label: 'Enviado' },
         { v: 'aprovado', label: 'Aprovado' },
+        { v: 'finalizado', label: 'Finalizado' },
         { v: 'rejeitado', label: 'Rejeitado' },
       ].map(f => (
         <a
-          href={f.v ? `?status=${f.v}` : '/orcamentos'}
-          class={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition ${validStatus === f.v ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+          href={f.v === 'ativos' ? '/orcamentos' : `?status=${f.v}`}
+          class={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition ${statusFilter === f.v ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
         >{f.label}</a>
       ))}
     </div>

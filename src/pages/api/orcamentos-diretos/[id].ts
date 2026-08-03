@@ -39,7 +39,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       if (!cliente_nome) return redirect(`/orcamentos/${id}/editar?error=validation`);
 
       const statusRaw = form.get('status')?.toString() || orc.status;
-      const status = ['rascunho', 'enviado', 'aprovado', 'rejeitado'].includes(statusRaw) ? statusRaw : orc.status;
+      const status = ['rascunho', 'enviado', 'aprovado', 'finalizado', 'rejeitado'].includes(statusRaw) ? statusRaw : orc.status;
 
       // Associação a chamado (vinda do dropdown do formulário).
       let chamadoId: number | null = null;
