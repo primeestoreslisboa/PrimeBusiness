@@ -16,6 +16,12 @@ const firstOfMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
 const lastOfMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 const lastOfMonth = `${lastOfMonthDate.getFullYear()}-${pad(lastOfMonthDate.getMonth() + 1)}-${pad(lastOfMonthDate.getDate())}`;
 
+// Mês anterior
+const firstOfPrevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+const lastOfPrevDate = new Date(now.getFullYear(), now.getMonth(), 0);
+const firstOfPrev = `${firstOfPrevDate.getFullYear()}-${pad(firstOfPrevDate.getMonth() + 1)}-01`;
+const lastOfPrev = `${lastOfPrevDate.getFullYear()}-${pad(lastOfPrevDate.getMonth() + 1)}-${pad(lastOfPrevDate.getDate())}`;
+
 const isDate = (v: string | null) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
 const deParam = Astro.url.searchParams.get('de');
 const ateParam = Astro.url.searchParams.get('ate');
@@ -121,6 +127,7 @@ const exportData = {
     <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-4">
       <div class="flex flex-wrap gap-2 mb-3">
         <a href="/relatorios" class={`px-3 py-1.5 rounded-full text-xs font-medium transition ${(de === firstOfMonth && ate === lastOfMonth) ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Mês atual</a>
+        <a href={`/relatorios?de=${firstOfPrev}&ate=${lastOfPrev}`} class={`px-3 py-1.5 rounded-full text-xs font-medium transition ${(de === firstOfPrev && ate === lastOfPrev) ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>Mês anterior</a>
       </div>
       <form method="GET" class="flex flex-wrap items-end gap-3">
         <div>
