@@ -351,7 +351,17 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
         }
         if (on && recompute) computeArea();
       }
-      m2?.addEventListener('change', () => applyM2(true));
+      m2?.addEventListener('change', () => {
+        // Ao desligar m², limpa as medidas (para o servidor não as interpretar como área)
+        // e repõe a quantidade editável a 1.
+        if (!m2.checked) {
+          if (larg) larg.value = '';
+          if (alt) alt.value = '';
+          if (qtd) qtd.value = '1';
+        }
+        applyM2(true);
+        recalc();
+      });
       larg?.addEventListener('input', () => { if (m2?.checked) computeArea(); });
       alt?.addEventListener('input', () => { if (m2?.checked) computeArea(); });
       applyM2(false);
