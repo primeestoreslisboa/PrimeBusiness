@@ -5,7 +5,16 @@ export type OrcamentoItem = {
   descricao: string;
   quantidade: number;
   preco_unitario: number;
+  largura?: number | null;
+  altura?: number | null;
 };
+
+/** Fator de área: em m² (largura×altura) multiplica o preço; caso contrário 1. */
+function itemArea(it: { largura?: number | null; altura?: number | null }): number {
+  const l = Number(it.largura) || 0;
+  const a = Number(it.altura) || 0;
+  return l > 0 && a > 0 ? l * a : 1;
+}
 
 export type OrcamentoPdfData = {
   numero: string;
@@ -65,7 +74,7 @@ function pdfText(s: string | null | undefined): string {
 }
 
 function computeTotals(data: OrcamentoPdfData) {
-  const subtotal = data.itens.reduce((acc, it) => acc + it.quantidade * it.preco_unitario, 0);
+  const subtotal = data.itens.reduce((acc, it) => acc + it.quantidade * itemArea(it) * it.preco_unitario, 0);
   let desconto = data.descontoTipo === 'percent' ? subtotal * ((data.descontoValor || 0) / 100) : (data.descontoValor || 0);
   if (!Number.isFinite(desconto) || desconto < 0) desconto = 0;
   if (desconto > subtotal) desconto = subtotal;
@@ -210,7 +219,7 @@ export function generateOrcamentoPdf(
 
         doc.rect(left, y, contentWidth, lineH).strokeColor(BORDER).lineWidth(0.5).stroke();
         if (it) {
-          const lineTotal = it.quantidade * it.preco_unitario;
+          const lineTotal = it.quantidade * itemArea(it) * it.preco_unitario;
           doc.fillColor(DARK).font('Helvetica');
           doc.text(String(i + 1), xNum + 4, y + 5, { width: cNum - 6 });
           doc.text(desc, xDesc + 4, y + 5, { width: cDesc - 8 });

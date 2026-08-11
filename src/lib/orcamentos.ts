@@ -68,14 +68,21 @@ export function num(v: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Fator de área: em m² (largura×altura) multiplica o preço; caso contrário 1. */
+export function areaFactor(largura: string | number | null | undefined, altura: string | number | null | undefined): number {
+  const l = num(largura);
+  const a = num(altura);
+  return l > 0 && a > 0 ? l * a : 1;
+}
+
 export function computeTotals(
-  itens: Array<{ quantidade: number; preco_unitario: number }>,
+  itens: Array<{ quantidade: number; preco_unitario: number; largura?: string | number | null; altura?: string | number | null }>,
   includeIva: boolean,
   ivaRate: number,
   descontoTipo: string = 'valor',
   descontoValorRaw: number = 0,
 ) {
-  const subtotal = itens.reduce((acc, it) => acc + it.quantidade * it.preco_unitario, 0);
+  const subtotal = itens.reduce((acc, it) => acc + it.quantidade * areaFactor(it.largura, it.altura) * it.preco_unitario, 0);
   // Desconto sempre sobre o valor sem IVA (subtotal).
   let desconto = descontoTipo === 'percent' ? subtotal * (descontoValorRaw / 100) : descontoValorRaw;
   if (!Number.isFinite(desconto) || desconto < 0) desconto = 0;
@@ -156,6 +163,8 @@ export async function buildOrcamentoPdf(
         descricao: `${it.descricao}${medidas}`,
         quantidade: num(it.quantidade),
         preco_unitario: num(it.preco_unitario),
+        largura: larg > 0 ? larg : null,
+        altura: alt > 0 ? alt : null,
       };
     }),
     includeIva: !!orc.include_iva,

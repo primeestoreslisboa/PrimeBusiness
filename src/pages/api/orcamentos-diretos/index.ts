@@ -21,10 +21,9 @@ export function parseItens(form: FormData): ParsedItem[] {
     if (!descricao) continue;
     const largura = parseDim(largs[i]);
     const altura = parseDim(alts[i]);
-    // Se tiver medidas (m²), a quantidade é a área (L×A).
-    const quantidade = largura && altura
-      ? Math.round(largura * altura * 100) / 100
-      : Math.max(0, Number.parseFloat((qtds[i]?.toString() || '1').replace(',', '.')) || 1);
+    // A quantidade é sempre o nº de itens introduzido; em m² as medidas (L×A)
+    // entram como fator de área no cálculo do total (ver computeTotals).
+    const quantidade = Math.max(0, Number.parseFloat((qtds[i]?.toString() || '1').replace(',', '.')) || 1);
     const preco_unitario = Math.max(0, Number.parseFloat((precos[i]?.toString() || '0').replace(',', '.')) || 0);
     itens.push({ descricao, quantidade, preco_unitario, largura, altura, ordem: itens.length });
   }

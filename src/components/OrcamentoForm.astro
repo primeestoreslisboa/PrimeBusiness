@@ -294,7 +294,12 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
       list.querySelectorAll('.orc-item').forEach(row => {
         const q = parseFloat((row.querySelector('.item-qtd') as HTMLInputElement)?.value.replace(',', '.') || '0') || 0;
         const p = parseFloat((row.querySelector('.item-preco') as HTMLInputElement)?.value.replace(',', '.') || '0') || 0;
-        const lineTotal = q * p;
+        // Em m² (medidas ativas), a área (L×A) multiplica o preço.
+        const m2on = (row.querySelector('.item-m2') as HTMLInputElement | null)?.checked;
+        const L = parseFloat((row.querySelector('.item-larg') as HTMLInputElement | null)?.value.replace(',', '.') || '0') || 0;
+        const A = parseFloat((row.querySelector('.item-alt') as HTMLInputElement | null)?.value.replace(',', '.') || '0') || 0;
+        const area = m2on && L > 0 && A > 0 ? L * A : 1;
+        const lineTotal = q * area * p;
         const cell = row.querySelector('.item-total');
         if (cell) cell.textContent = fmt(lineTotal);
         subtotal += lineTotal;
@@ -330,41 +335,26 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
         recalc();
       });
 
-      // Medidas m²: mostrar largura/altura e calcular a quantidade (área = L×A).
+      // Medidas m²: mostrar/esconder largura×altura. A quantidade (Qtd) é sempre
+      // o nº de peças; em m² a área (L×A) entra como fator no total (ver recalc).
       const m2 = row.querySelector('.item-m2') as HTMLInputElement | null;
       const dims = row.querySelector('.item-dims') as HTMLElement | null;
       const larg = row.querySelector('.item-larg') as HTMLInputElement | null;
       const alt = row.querySelector('.item-alt') as HTMLInputElement | null;
-      const qtd = row.querySelector('.item-qtd') as HTMLInputElement | null;
-      function computeArea() {
-        const L = parseFloat((larg?.value || '0').replace(',', '.')) || 0;
-        const A = parseFloat((alt?.value || '0').replace(',', '.')) || 0;
-        if (qtd) qtd.value = String(Math.round(L * A * 100) / 100);
-        recalc();
-      }
-      function applyM2(recompute = false) {
+      function applyM2() {
         const on = !!m2?.checked;
         if (dims) dims.classList.toggle('hidden', !on);
-        if (qtd) {
-          qtd.readOnly = on;
-          qtd.classList.toggle('bg-gray-100', on);
-        }
-        if (on && recompute) computeArea();
       }
       m2?.addEventListener('change', () => {
-        // Ao desligar m², limpa as medidas (para o servidor não as interpretar como área)
-        // e repõe a quantidade editável a 1.
+        // Ao desligar m², limpa as medidas para não contarem no total.
         if (!m2.checked) {
           if (larg) larg.value = '';
           if (alt) alt.value = '';
-          if (qtd) qtd.value = '1';
         }
-        applyM2(true);
+        applyM2();
         recalc();
       });
-      larg?.addEventListener('input', () => { if (m2?.checked) computeArea(); });
-      alt?.addEventListener('input', () => { if (m2?.checked) computeArea(); });
-      applyM2(false);
+      applyM2();
 
       // Ao escolher um produto do catálogo, preenche descrição e preço; ativa m² se a unidade for m².
       const prod = row.querySelector('.item-prod') as HTMLSelectElement | null;
@@ -376,7 +366,7 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
         if (desc) desc.value = opt.dataset.nome || '';
         if (preco) preco.value = opt.dataset.preco || '';
         const isM2 = (opt.dataset.unidade || '').toLowerCase().includes('m²') || (opt.dataset.unidade || '').toLowerCase().includes('m2');
-        if (m2) { m2.checked = isM2; applyM2(true); }
+        if (m2) { m2.checked = isM2; applyM2(); }
         recalc();
       });
     }
