@@ -43,6 +43,27 @@ function fmtDate(d: Date) {
   return `${pad(d.getDate())} / ${pad(d.getMonth() + 1)} / ${d.getFullYear()}`;
 }
 
+/**
+ * Higieniza texto livre para as fontes standard do pdfkit (Helvetica / WinAnsi).
+ * Estas fontes so suportam Latin-1 (CP1252); caracteres fora disso -- ou um
+ * '\r' de uma quebra de linha do Windows -- aparecem como glifos lixo (ex.: "D").
+ * Normaliza quebras de linha, converte pontuacao tipografica para ASCII e
+ * remove tudo o que a fonte nao consegue representar.
+ */
+function pdfText(s: string | null | undefined): string {
+  if (!s) return '';
+  return String(s)
+    .replace(/\r\n?/g, '\n')                        // CRLF / CR -> LF
+    .replace(/[–—−]/g, '-')          // en/em dash, sinal de menos -> -
+    .replace(/[‘’‚′]/g, "'")    // aspas simples curvas / prime -> '
+    .replace(/[“”„″]/g, '"')    // aspas duplas curvas / double prime -> "
+    .replace(/…/g, '...')                      // reticencias -> ...
+    .replace(/[•●▪·]/g, '-')    // bullets / ponto medio -> -
+    .replace(/ /g, ' ')                        // espaco nao-quebravel -> espaco
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')   // controlo (mantem \t e \n)
+    .replace(/[^\x09\x0A\x20-\xFF]/g, '');          // fora de Latin-1 -> removido
+}
+
 function computeTotals(data: OrcamentoPdfData) {
   const subtotal = data.itens.reduce((acc, it) => acc + it.quantidade * it.preco_unitario, 0);
   let desconto = data.descontoTipo === 'percent' ? subtotal * ((data.descontoValor || 0) / 100) : (data.descontoValor || 0);
@@ -132,9 +153,9 @@ export function generateOrcamentoPdf(
       y = sectionHeader('DADOS DO CLIENTE', y);
       const c = data.cliente;
       const rows: Array<[string, string, string, string]> = [
-        ['Nome / Empresa', c.nome || '-', 'NIF / Contribuinte', c.nif || '-'],
-        ['Morada', c.morada || '-', 'Cód. Postal / Localidade', [c.codigoPostal, c.localidade].filter(Boolean).join(' ') || '-'],
-        ['Telefone', c.telefone || '-', 'Email', c.email || '-'],
+        ['Nome / Empresa', pdfText(c.nome) || '-', 'NIF / Contribuinte', pdfText(c.nif) || '-'],
+        ['Morada', pdfText(c.morada) || '-', 'Cód. Postal / Localidade', [pdfText(c.codigoPostal), pdfText(c.localidade)].filter(Boolean).join(' ') || '-'],
+        ['Telefone', pdfText(c.telefone) || '-', 'Email', pdfText(c.email) || '-'],
       ];
       const rowH = 22;
       const colW = contentWidth / 2;
@@ -177,7 +198,7 @@ export function generateOrcamentoPdf(
       const minRows = Math.max(data.itens.length, 4);
       for (let i = 0; i < minRows; i++) {
         const it = data.itens[i];
-        const desc = it?.descricao || '';
+        const desc = pdfText(it?.descricao);
         const descHeight = it ? doc.heightOfString(desc, { width: cDesc - 8 }) : 0;
         const lineH = Math.max(20, descHeight + 8);
 
@@ -243,7 +264,7 @@ export function generateOrcamentoPdf(
         l.toLowerCase().startsWith('pagamento') ? ibanLine : l,
       );
       condicoes.forEach(line => {
-        doc.text(`•  ${line}`, left, y, { width: contentWidth });
+        doc.text(`•  ${pdfText(line)}`, left, y, { width: contentWidth });
         y = doc.y + 2;
       });
 
@@ -255,7 +276,7 @@ export function generateOrcamentoPdf(
           y = 40;
         }
         y = sectionHeader('OBSERVAÇÕES', y) + 6;
-        doc.font('Helvetica').fontSize(9).fillColor(DARK).text(data.observacoes.trim(), left, y, { width: contentWidth });
+        doc.font('Helvetica').fontSize(9).fillColor(DARK).text(pdfText(data.observacoes).trim(), left, y, { width: contentWidth });
       }
 
       // ---------- RODAPÉ ----------
