@@ -2,7 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import { getDb } from '../lib/db';
 import { getAgendamentoIntervaloHoras } from '../lib/settings';
-import { timeRangeLabel } from '../lib/horario';
+import { timeRangeLabel, dateTimeRangeLabel } from '../lib/horario';
 
 const user = Astro.locals.user;
 const sql  = getDb();
@@ -27,6 +27,23 @@ const chamadosDia = await sql`
 const chamadosDiaConsumidos = chamadosDia.filter(
   (c: any) => c.status !== 'concluido' && c.status !== 'cancelado'
 );
+
+// Orçamentos diretos associados aos chamados do dia (para acesso rápido).
+const diaIds = chamadosDia.map((c: any) => c.id);
+const orcamentosDia = diaIds.length > 0
+  ? await sql`
+      SELECT id, numero, total, status, chamado_id
+      FROM orcamentos_diretos
+      WHERE chamado_id = ANY(${diaIds})
+      ORDER BY created_at DESC
+    `
+  : [];
+const orcPorChamado = new Map<number, any[]>();
+for (const o of orcamentosDia) {
+  const arr = orcPorChamado.get(o.chamado_id) ?? [];
+  arr.push(o);
+  orcPorChamado.set(o.chamado_id, arr);
+}
 
 const monthStart = new Date(selYear, selMonth, 1);
 const monthEnd   = new Date(selYear, selMonth + 1, 1);
@@ -96,6 +113,18 @@ const timelineRows = Array.from({ length: 14 }, (_, i) => {
 const prevM = new Date(selYear, selMonth - 1, 1);
 const nextM = new Date(selYear, selMonth + 1, 1);
 const dayLink = (d: number) => `?date=${selYear}-${String(selMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+function buildCopyText(c: any) {
+  const local = [c.morada, c.codigo_postal, c.bairro, c.cidade].filter(Boolean).join(', ');
+  return [
+    `Novo agendamento #${c.id}`,
+    `*Cliente*: ${c.nome ?? ''}`,
+    `*Telefone:* ${c.telefone ?? ''}`,
+    `*Horario:* ${dateTimeRangeLabel(c.horario_agendado, intervaloHoras)}`,
+    `*Morada:* ${local}`,
+    `*Descricao:* ${c.descricao ?? ''}`,
+  ].join('\n');
+}
 ---
 <Layout title="Dashboard" user={user}>
   <div class="py-6 pb-24">
@@ -191,16 +220,48 @@ const dayLink = (d: number) => `?date=${selYear}-${String(selMonth+1).padStart(2
         </div>
       ) : (
         <div class="divide-y divide-gray-50">
-          {chamadosDia.map((c: any) => (
-            <a href={`/chamados/${c.id}`} class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition">
-              <div class="min-w-[92px] text-xs font-bold text-red-700 leading-tight pt-0.5">{timeRangeLabel(c.horario_agendado, intervaloHoras)}</div>
-              <div class="flex-1 min-w-0">
-                <p class="font-medium text-gray-800 truncate">{c.nome}</p>
-                <p class="text-xs text-gray-500 truncate">{c.cidade} - {c.descricao.substring(0,50)}{c.descricao.length>50?'...':''}</p>
+          {chamadosDia.map((c: any) => {
+            const orcs = orcPorChamado.get(c.id) ?? [];
+            const orc = orcs[0];
+            return (
+            <div class="relative hover:bg-gray-50 transition">
+              <a href={`/chamados/${c.id}`} class="flex items-start gap-3 px-4 py-3 pr-24">
+                <div class="min-w-[92px] text-xs font-bold text-red-700 leading-tight pt-0.5">{timeRangeLabel(c.horario_agendado, intervaloHoras)}</div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-medium text-gray-800 truncate">{c.nome}</p>
+                  <p class="text-xs text-gray-500 truncate">{c.cidade} - {c.descricao.substring(0,50)}{c.descricao.length>50?'...':''}</p>
+                  <span class={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[c.status] || 'bg-gray-100 text-gray-800'}`}>{STATUS_LABEL[c.status] || c.status}</span>
+                </div>
+              </a>
+              <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                <button
+                  type="button"
+                  class="copy-agendamento w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition"
+                  title="Copiar detalhes para WhatsApp"
+                  data-copy={buildCopyText(c)}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 3h4" />
+                  </svg>
+                </button>
+                {orc && (
+                  <a
+                    href={`/orcamentos/${orc.id}/editar`}
+                    class="relative w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 transition"
+                    title={`Abrir orçamento ${orc.numero || `#${orc.id}`}`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    {orcs.length > 1 && (
+                      <span class="absolute -top-1 -right-1 bg-red-700 text-white text-[9px] leading-none w-4 h-4 rounded-full flex items-center justify-center font-bold">{orcs.length}</span>
+                    )}
+                  </a>
+                )}
               </div>
-              <span class={`flex-shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[c.status] || 'bg-gray-100 text-gray-800'}`}>{STATUS_LABEL[c.status] || c.status}</span>
-            </a>
-          ))}
+            </div>
+          );
+          })}
         </div>
       )}
     </div>
@@ -228,4 +289,31 @@ const dayLink = (d: number) => `?date=${selYear}-${String(selMonth+1).padStart(2
     </div>
 
   </div>
+
+  <script>
+    document.querySelectorAll('.copy-agendamento').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const text = btn.getAttribute('data-copy') || '';
+        let ok = false;
+        try {
+          await navigator.clipboard.writeText(text);
+          ok = true;
+        } catch {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { ok = document.execCommand('copy'); } catch { ok = false; }
+          document.body.removeChild(ta);
+        }
+        const original = btn.innerHTML;
+        btn.textContent = ok ? '✓' : '✕';
+        setTimeout(() => { btn.innerHTML = original; }, 1200);
+      });
+    });
+  </script>
 </Layout>
