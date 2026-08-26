@@ -100,6 +100,7 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
 
     // ---------- ENVIAR EMAIL (PDF anexado) ----------
     if (action === 'send_email') {
+      const mensagem = form.get('mensagem')?.toString().trim() || null;
       const rawEmails = form.get('to_email')?.toString().trim() || orc.cliente_email || '';
       const targetEmails = rawEmails
         .split(/[;,]/)
@@ -115,14 +116,26 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       try {
         const pdfBuffer = await buildOrcamentoPdf(fresh.orc, fresh.itens, baseUrl, company);
         const viewUrl = `${baseUrl}/p/${fresh.orc.public_token}`;
+        // Total autoritativo: recalculado a partir dos itens (igual ao PDF),
+        // para nunca divergir de um valor guardado eventualmente desatualizado.
+        const includeIvaFresh = !!fresh.orc.include_iva;
+        const ivaRateFresh = Number(fresh.orc.iva_rate) || 0;
+        const { total: totalCalc } = computeTotals(
+          fresh.itens as any,
+          includeIvaFresh,
+          ivaRateFresh,
+          fresh.orc.desconto_tipo || 'valor',
+          Number(fresh.orc.desconto_valor) || 0,
+        );
         await sendOrcamentoDiretoEmail({
           toEmail: targetEmails,
           toName: fresh.orc.cliente_nome,
           numero: fresh.orc.numero || `ORC-${fresh.orc.id}`,
-          total: Number(fresh.orc.total),
+          total: totalCalc,
           pdfBuffer,
           viewUrl,
           empresa: company.nome,
+          mensagem,
         });
         await sql`
           UPDATE orcamentos_diretos

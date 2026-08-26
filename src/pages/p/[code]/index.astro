@@ -1,7 +1,7 @@
 ---
 import { getDb } from '../../../lib/db';
 import { getCompanyInfo } from '../../../lib/settings';
-import { loadOrcamentoByToken, num, computeTotals } from '../../../lib/orcamentos';
+import { loadOrcamentoByToken, num, computeTotals, areaFactor } from '../../../lib/orcamentos';
 
 const sql = getDb();
 const { code } = Astro.params;
@@ -96,20 +96,28 @@ const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigit
               </tr>
             </thead>
             <tbody>
-              {loaded.itens.map((it: any, i: number) => (
+              {loaded.itens.map((it: any, i: number) => {
+                const larg = num(it.largura);
+                const alt = num(it.altura);
+                const medidas = larg > 0 && alt > 0
+                  ? ` (${larg.toLocaleString('pt-PT')} × ${alt.toLocaleString('pt-PT')} m)`
+                  : '';
+                const lineTotal = num(it.quantidade) * areaFactor(it.largura, it.altura) * num(it.preco_unitario);
+                return (
                 <tr>
                   <td>{i + 1}</td>
-                  <td>{it.descricao}</td>
+                  <td>{it.descricao}{medidas}</td>
                   <td class="num">{num(it.quantidade)}</td>
                   <td class="num">{eur(num(it.preco_unitario))}</td>
-                  <td class="num">{eur(num(it.quantidade) * num(it.preco_unitario))}</td>
+                  <td class="num">{eur(lineTotal)}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
 
           {(() => {
-            const t = computeTotals(loaded.itens.map((it: any) => ({ quantidade: num(it.quantidade), preco_unitario: num(it.preco_unitario) })), !!loaded.orc.include_iva, num(loaded.orc.iva_rate), loaded.orc.desconto_tipo || 'valor', num(loaded.orc.desconto_valor));
+            const t = computeTotals(loaded.itens.map((it: any) => ({ quantidade: num(it.quantidade), preco_unitario: num(it.preco_unitario), largura: it.largura, altura: it.altura })), !!loaded.orc.include_iva, num(loaded.orc.iva_rate), loaded.orc.desconto_tipo || 'valor', num(loaded.orc.desconto_valor));
             return (
               <div class="totals">
                 <div><span>Subtotal</span><span>{eur(t.subtotal)} €</span></div>

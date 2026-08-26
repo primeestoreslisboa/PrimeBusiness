@@ -217,8 +217,17 @@ export async function sendOrcamentoDiretoEmail(params: {
   pdfBuffer: Buffer;
   viewUrl: string;
   empresa: string;
+  mensagem?: string | null;
 }) {
-  const { toEmail, toName, numero, total, pdfBuffer, viewUrl, empresa } = params;
+  const { toEmail, toName, numero, total, pdfBuffer, viewUrl, empresa, mensagem } = params;
+
+  const comentario = (mensagem || '').trim();
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const comentarioHtml = comentario
+    ? `<div style="margin:12px 0;padding:12px 14px;background:#f9fafb;border-left:3px solid #8B1A1A;border-radius:6px;color:#374151;white-space:pre-wrap;">${escapeHtml(comentario).replace(/\n/g, '<br>')}</div>`
+    : '';
+  const comentarioText = comentario ? `${comentario}\n\n` : '';
 
   await deliver({
     to: toEmail,
@@ -228,6 +237,7 @@ export async function sendOrcamentoDiretoEmail(params: {
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #8B1A1A;">Orçamento ${numero}</h2>
         <p>Olá <strong>${toName}</strong>,</p>
+        ${comentarioHtml}
         <p>Segue em anexo o orçamento solicitado, no valor total de <strong>${total.toFixed(2).replace('.', ',')} €</strong>.</p>
         <p>Pode também consultar o orçamento online:</p>
         <p><a href="${viewUrl}" style="display:inline-block;background:#8B1A1A;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600;">Ver orçamento</a></p>
@@ -238,6 +248,7 @@ export async function sendOrcamentoDiretoEmail(params: {
     `,
     text:
       `Olá ${toName},\n\n` +
+      comentarioText +
       `Segue em anexo o orçamento ${numero}, no valor total de ${total.toFixed(2).replace('.', ',')} €.\n\n` +
       `Consulte o orçamento online: ${viewUrl}\n\n` +
       `${empresa}`,
