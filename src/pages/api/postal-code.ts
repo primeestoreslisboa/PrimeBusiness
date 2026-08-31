@@ -152,6 +152,44 @@ function tryParseCodigoPostalPage(html: string, formatted: string) {
   };
 }
 
+async function fetchWithTimeout(url: string, opts: RequestInit, ms = 7000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Fonte principal: API JSON geoapi.pt (rápida e estável).
+async function fetchGeoApi(formatted: string) {
+  try {
+    const res = await fetchWithTimeout(
+      `https://json.geoapi.pt/cp/${formatted}`,
+      { headers: { 'User-Agent': 'PrimeBussines/1.0 (postal-lookup)', Accept: 'application/json' } },
+      7000,
+    );
+    if (!res.ok) return null;
+    if (!(res.headers.get('content-type') || '').includes('json')) return null;
+    const j: any = await res.json();
+
+    const parte = Array.isArray(j?.partes) && j.partes.length > 0 ? j.partes[0] : null;
+    // A chave "Artéria" tem acento; procura-a de forma robusta (sem depender da codificação).
+    const norm = (k: string) => k.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+    const arteriaKey = parte ? Object.keys(parte).find(k => norm(k) === 'arteria') : null;
+
+    const morada = (arteriaKey ? parte[arteriaKey] : '')?.toString().trim() || '';
+    const bairro = (parte?.Local || '')?.toString().trim() || '';
+    const cidade = (j?.Localidade || j?.Concelho || '')?.toString().trim() || '';
+
+    if (!morada && !bairro && !cidade) return null;
+    return { morada, bairro, cidade, display_name: [morada, cidade].filter(Boolean).join(', ') };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchCodigoPostalScrape(formatted: string, cp4: string, cp3: string) {
   const urls = [
     `https://www.codigo-postal.pt/?cp4=${cp4}&cp3=${cp3}`,
@@ -159,12 +197,17 @@ async function fetchCodigoPostalScrape(formatted: string, cp4: string, cp3: stri
   ];
 
   for (const url of urls) {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'PrimeBussines/1.0 (postal-lookup)',
-        'Accept-Language': 'pt-PT,pt;q=0.9,en;q=0.8',
-      },
-    });
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(url, {
+        headers: {
+          'User-Agent': 'PrimeBussines/1.0 (postal-lookup)',
+          'Accept-Language': 'pt-PT,pt;q=0.9,en;q=0.8',
+        },
+      }, 6000);
+    } catch {
+      continue; // timeout / erro de rede -> tenta o próximo URL
+    }
 
     if (!res.ok) continue;
     const html = await res.text();
@@ -208,7 +251,11 @@ export const GET: APIRoute = async ({ url }) => {
       });
     }
 
-    const found = await fetchCodigoPostalScrape(normalized.formatted, normalized.cp4, normalized.cp3);
+    // Fonte principal: geoapi.pt (JSON, rápida e estável). Recurso: scraping.
+    let found = await fetchGeoApi(normalized.formatted);
+    if (!found) {
+      found = await fetchCodigoPostalScrape(normalized.formatted, normalized.cp4, normalized.cp3);
+    }
 
     if (!found) {
       const payload: PostalLookupResponse = {
