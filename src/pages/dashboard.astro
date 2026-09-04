@@ -32,7 +32,7 @@ const chamadosDiaConsumidos = chamadosDia.filter(
 const diaIds = chamadosDia.map((c: any) => c.id);
 const orcamentosDia = diaIds.length > 0
   ? await sql`
-      SELECT id, numero, total, status, chamado_id
+      SELECT id, numero, total, status, observacoes, chamado_id
       FROM orcamentos_diretos
       WHERE chamado_id = ANY(${diaIds})
       ORDER BY created_at DESC
@@ -44,6 +44,8 @@ for (const o of orcamentosDia) {
   arr.push(o);
   orcPorChamado.set(o.chamado_id, arr);
 }
+const eur = (n: any) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number.parseFloat(String(n ?? '0')) || 0);
+const menuItem = 'menu-item flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition';
 
 const monthStart = new Date(selYear, selMonth, 1);
 const monthEnd   = new Date(selYear, selMonth + 1, 1);
@@ -225,39 +227,46 @@ function buildCopyText(c: any) {
             const orc = orcs[0];
             return (
             <div class="relative hover:bg-gray-50 transition">
-              <a href={`/chamados/${c.id}`} class="flex items-start gap-3 px-4 py-3 pr-24">
-                <div class="min-w-[92px] text-xs font-bold text-red-700 leading-tight pt-0.5">{timeRangeLabel(c.horario_agendado, intervaloHoras)}</div>
+              <a href={`/chamados/${c.id}`} class="flex items-start gap-3 px-4 py-3 pr-16">
+                <div class="min-w-[92px] pt-0.5">
+                  <p class="text-xs font-bold text-red-700 leading-tight">{timeRangeLabel(c.horario_agendado, intervaloHoras)}</p>
+                  <span class={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[c.status] || 'bg-gray-100 text-gray-800'}`}>{STATUS_LABEL[c.status] || c.status}</span>
+                </div>
                 <div class="flex-1 min-w-0">
                   <p class="font-medium text-gray-800 truncate">{c.nome}</p>
                   <p class="text-xs text-gray-500 truncate">{c.cidade} - {c.descricao.substring(0,50)}{c.descricao.length>50?'...':''}</p>
-                  <span class={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[c.status] || 'bg-gray-100 text-gray-800'}`}>{STATUS_LABEL[c.status] || c.status}</span>
+                  {orcs.length > 0 && (
+                    <div class="mt-1 space-y-0.5">
+                      {orcs.map((o: any) => (
+                        <p class="text-xs text-gray-500 truncate">
+                          {o.numero ?? `Orçamento #${o.id}`} | EUR {eur(o.total)}{o.observacoes ? ` | ${o.observacoes}` : ''}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </a>
-              <div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                <button
-                  type="button"
-                  class="copy-agendamento w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition"
-                  title="Copiar detalhes para WhatsApp"
-                  data-copy={buildCopyText(c)}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 3h4" />
-                  </svg>
+              <div class="absolute right-3 top-3 kebab">
+                <button type="button" title="Opções" aria-haspopup="true" aria-expanded="false"
+                        class="kebab-toggle w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
                 </button>
-                {orc && (
-                  <a
-                    href={`/orcamentos/${orc.id}/editar`}
-                    class="relative w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-800 transition"
-                    title={`Abrir orçamento ${orc.numero || `#${orc.id}`}`}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                    {orcs.length > 1 && (
-                      <span class="absolute -top-1 -right-1 bg-red-700 text-white text-[9px] leading-none w-4 h-4 rounded-full flex items-center justify-center font-bold">{orcs.length}</span>
-                    )}
+                <div class="kebab-menu hidden absolute right-full mr-1 top-0 w-60 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-[60]">
+                  <a href={`/chamados/${c.id}`} class={menuItem}>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    Abrir chamado
                   </a>
-                )}
+                  <button type="button" class={`${menuItem} copy-agendamento`} data-copy={buildCopyText(c)}>
+                    <svg class="w-4 h-4 text-gray-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 3h4"/></svg>
+                    Copiar detalhes (WhatsApp)
+                  </button>
+                  {orcs.map((o: any) => (
+                    <a href={`/orcamentos/${o.id}/editar`} class={menuItem}>
+                      <svg class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                      Abrir {o.numero ?? `orçamento #${o.id}`}
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
           );
@@ -291,6 +300,40 @@ function buildCopyText(c: any) {
   </div>
 
   <script>
+    // Menu de três pontinhos (kebab)
+    function closeAllKebabs() {
+      document.querySelectorAll('.kebab-menu').forEach(m => m.classList.add('hidden'));
+      document.querySelectorAll('.kebab-toggle').forEach(b => b.setAttribute('aria-expanded', 'false'));
+    }
+    document.querySelectorAll('.kebab-toggle').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const menu = btn.parentElement?.querySelector('.kebab-menu') as HTMLElement | null;
+        const isOpen = !!menu && !menu.classList.contains('hidden');
+        closeAllKebabs();
+        if (menu && !isOpen) {
+          menu.classList.remove('hidden');
+          btn.setAttribute('aria-expanded', 'true');
+          // Posiciona como fixed para escapar de qualquer recorte do card.
+          const r = (btn as HTMLElement).getBoundingClientRect();
+          const mw = menu.offsetWidth;
+          const mh = menu.offsetHeight;
+          menu.style.position = 'fixed';
+          menu.style.right = 'auto';
+          menu.style.marginRight = '0';
+          let left = r.left - mw - 6;
+          if (left < 8) left = Math.min(r.right + 6, window.innerWidth - mw - 8);
+          let top = r.top;
+          if (top + mh > window.innerHeight - 8) top = window.innerHeight - mh - 8;
+          if (top < 8) top = 8;
+          menu.style.left = left + 'px';
+          menu.style.top = top + 'px';
+        }
+      });
+    });
+    document.addEventListener('click', closeAllKebabs);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllKebabs(); });
+
     document.querySelectorAll('.copy-agendamento').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
