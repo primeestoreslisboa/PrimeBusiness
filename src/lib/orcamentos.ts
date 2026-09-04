@@ -22,6 +22,9 @@ export type OrcamentoDiretoRow = {
   desconto_tipo: string | null;
   desconto_valor: string | number | null;
   status: string;
+  finalizado_at: string | null;
+  tecnico_externo: string | null;
+  tecnico_valor: string | number | null;
   public_token: string | null;
   enviado_via: string | null;
   enviado_at: string | null;
@@ -73,6 +76,25 @@ export function areaFactor(largura: string | number | null | undefined, altura: 
   const l = num(largura);
   const a = num(altura);
   return l > 0 && a > 0 ? l * a : 1;
+}
+
+/**
+ * Desmembramento por técnico externo. Quando um técnico é deslocado, fica com
+ * um valor fixo (deslocação/mão-de-obra) + o custo de material; a empresa fica
+ * com o resto. Sem técnico externo: o lucro da empresa é total − custo de
+ * material (como antes).
+ */
+export function computeDesmembramento(
+  total: number,
+  custoMaterial: number,
+  tecnicoExterno: string | null | undefined,
+  tecnicoValor: string | number | null | undefined,
+) {
+  const externo = !!(tecnicoExterno && String(tecnicoExterno).trim());
+  const valorBase = externo ? Math.max(0, num(tecnicoValor)) : 0;
+  const valorTecnico = externo ? valorBase + custoMaterial : 0;
+  const lucroEmpresa = externo ? total - valorTecnico : total - custoMaterial;
+  return { externo, valorBase, valorTecnico, lucroEmpresa };
 }
 
 export function computeTotals(

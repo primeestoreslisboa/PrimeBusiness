@@ -163,6 +163,7 @@ const orcDiretoStatusLabel: Record<string, string> = {
   rejeitado: 'Rejeitado',
 };
 const eurFmt = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+const menuItem = 'menu-item flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition';
 
 function getStatusBadge(status: string) {
   const map: Record<string, { cls: string; label: string }> = {
@@ -244,7 +245,7 @@ function buildCopyText(c: any) {
       </a>
     </div>
 
-    <form method="GET" class="mb-4 space-y-2">
+    <form method="GET" class="mb-4 space-y-2" data-filter-form>
       <div class="flex gap-2">
         <input
           type="text"
@@ -257,7 +258,7 @@ function buildCopyText(c: any) {
           Buscar
         </button>
       </div>
-      <div class="flex gap-2 overflow-x-auto pb-1">
+      <div id="filtros" class="flex gap-2 overflow-x-auto pb-1">
         {['', 'pendente', 'em_andamento', 'concluido', 'cancelado'].map(s => (
           <a
             href={s ? `?status=${s}` : '/chamados'}
@@ -360,41 +361,37 @@ function buildCopyText(c: any) {
                   </div>
                 </div>
               </a>
-              <div class="absolute right-3 bottom-3 flex items-center gap-1">
-                <button
-                  type="button"
-                  class="copy-agendamento w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 transition"
-                  title="Copiar detalhes"
-                  data-copy={buildCopyText(c)}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 3h4" />
-                  </svg>
+              <div class="absolute right-3 bottom-3 kebab">
+                <button type="button" title="Opções" aria-haspopup="true" aria-expanded="false"
+                        class="kebab-toggle w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
                 </button>
-                <a
-                  href={duplicateUrl}
-                  class="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-800 transition"
-                  title="Duplicar chamado"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M10 20h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </a>
-
-                {user.role === 'admin' && c.status !== 'concluido' && c.status !== 'cancelado' && (
-                  <form method="POST" action={`/api/chamados/${c.id}`} data-confirm="Eliminar este chamado?">
-                    <input type="hidden" name="_method" value="DELETE" />
-                    <button
-                      type="submit"
-                      class="w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 hover:bg-red-100 text-red-500 hover:text-red-700 transition"
-                      title="Eliminar"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-6 0h6" />
-                      </svg>
-                    </button>
-                  </form>
-                )}
+                <div class="kebab-menu hidden absolute right-full mr-1 bottom-0 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-[60]">
+                  <a href={`/chamados/${c.id}`} class={menuItem}>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    Abrir chamado
+                  </a>
+                  <button type="button" class={`${menuItem} copy-agendamento`} data-copy={buildCopyText(c)}>
+                    <svg class="w-4 h-4 text-gray-500 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6 3h4"/></svg>
+                    Copiar detalhes (WhatsApp)
+                  </button>
+                  <a href={duplicateUrl} class={menuItem}>
+                    <svg class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M10 20h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    Duplicar chamado
+                  </a>
+                  {user.role === 'admin' && c.status !== 'concluido' && c.status !== 'cancelado' && (
+                    <>
+                      <div class="border-t border-gray-100 my-1"></div>
+                      <form method="POST" action={`/api/chamados/${c.id}`} data-confirm="Eliminar este chamado?">
+                        <input type="hidden" name="_method" value="DELETE" />
+                        <button type="submit" class={`${menuItem} text-red-600 hover:bg-red-50`}>
+                          <svg class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-6 0h6"/></svg>
+                          Eliminar
+                        </button>
+                      </form>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -404,6 +401,44 @@ function buildCopyText(c: any) {
   </div>
 
   <script>
+    // Persistência do filtro/pesquisa: restaura ao voltar à lista.
+    (function () {
+      const KEY = 'filtro:' + location.pathname;
+      if (location.search) {
+        sessionStorage.setItem(KEY, location.search);
+      } else {
+        const saved = sessionStorage.getItem(KEY);
+        if (saved && saved.length > 1) { location.replace(location.pathname + saved); return; }
+      }
+      document.querySelectorAll('#filtros a').forEach(el => {
+        el.addEventListener('click', () => {
+          try { sessionStorage.setItem(KEY, new URL((el as HTMLAnchorElement).href, location.origin).search); } catch {}
+        });
+      });
+      const sf = document.querySelector('[data-filter-form]') as HTMLFormElement | null;
+      sf?.addEventListener('submit', () => {
+        const params = new URLSearchParams(new FormData(sf) as any).toString();
+        sessionStorage.setItem(KEY, params ? ('?' + params) : '');
+      });
+    })();
+
+    // Menu de três pontinhos (kebab)
+    function closeAllKebabs() {
+      document.querySelectorAll('.kebab-menu').forEach(m => m.classList.add('hidden'));
+      document.querySelectorAll('.kebab-toggle').forEach(b => b.setAttribute('aria-expanded', 'false'));
+    }
+    document.querySelectorAll('.kebab-toggle').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const menu = btn.parentElement?.querySelector('.kebab-menu');
+        const isOpen = !!menu && !menu.classList.contains('hidden');
+        closeAllKebabs();
+        if (menu && !isOpen) { menu.classList.remove('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+      });
+    });
+    document.addEventListener('click', closeAllKebabs);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllKebabs(); });
+
     document.querySelectorAll('.copy-agendamento').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.preventDefault();

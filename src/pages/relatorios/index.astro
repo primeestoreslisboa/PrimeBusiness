@@ -1,7 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { getDb } from '../../lib/db';
-import { num } from '../../lib/orcamentos';
+import { num, computeDesmembramento } from '../../lib/orcamentos';
 
 const user = Astro.locals.user;
 // Relatório com dados de custo/lucro: apenas administradores.
@@ -34,13 +34,15 @@ const rows = await sql`
     o.numero,
     o.cliente_nome,
     o.total,
-    o.created_at,
+    COALESCE(o.finalizado_at, o.created_at) AS ref_data,
+    o.tecnico_externo,
+    o.tecnico_valor,
     COALESCE((SELECT SUM(f.valor_total) FROM orcamento_faturas f WHERE f.orcamento_id = o.id), 0) AS custo_material
   FROM orcamentos_diretos o
   WHERE o.status = 'finalizado'
-    AND o.created_at >= ${de}::date
-    AND o.created_at < (${ate}::date + INTERVAL '1 day')
-  ORDER BY o.created_at ASC, o.id ASC
+    AND COALESCE(o.finalizado_at, o.created_at) >= ${de}::date
+    AND COALESCE(o.finalizado_at, o.created_at) < (${ate}::date + INTERVAL '1 day')
+  ORDER BY COALESCE(o.finalizado_at, o.created_at) ASC, o.id ASC
 `;
 
 type Linha = {
@@ -49,24 +51,30 @@ type Linha = {
   data: string;
   total: number;
   custo: number;
+  tecnico: string;
+  valorTecnico: number;
   lucro: number;
 };
 
 const linhas: Linha[] = rows.map((r: any) => {
   const total = num(r.total);
   const custo = num(r.custo_material);
+  const d = computeDesmembramento(total, custo, r.tecnico_externo, r.tecnico_valor);
   return {
     numero: r.numero,
     cliente_nome: r.cliente_nome,
-    data: new Date(r.created_at).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Lisbon' }),
+    data: new Date(r.ref_data).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Lisbon' }),
     total,
     custo,
-    lucro: total - custo,
+    tecnico: d.externo ? String(r.tecnico_externo).trim() : '',
+    valorTecnico: d.valorTecnico,
+    lucro: d.lucroEmpresa,
   };
 });
 
 const totOrcamento = linhas.reduce((a, l) => a + l.total, 0);
 const totCusto = linhas.reduce((a, l) => a + l.custo, 0);
+const totValorTecnico = linhas.reduce((a, l) => a + l.valorTecnico, 0);
 const totLucro = linhas.reduce((a, l) => a + l.lucro, 0);
 
 // Despesas gerais (sem orçamento) no mesmo período.
@@ -109,9 +117,11 @@ const exportData = {
     data: l.data,
     total: l.total,
     custo: l.custo,
+    tecnico: l.tecnico,
+    valorTecnico: l.valorTecnico,
     lucro: l.lucro,
   })),
-  totais: { total: totOrcamento, custo: totCusto, lucro: totLucro },
+  totais: { total: totOrcamento, custo: totCusto, valorTecnico: totValorTecnico, lucro: totLucro },
   despesas: despesas.map(d => ({
     data: d.data, descricao: d.descricao, fornecedor: d.fornecedor, numero_fatura: d.numero_fatura, categoria: d.categoria, valor: d.valor,
   })),
@@ -154,10 +164,17 @@ const exportData = {
         <p class="text-lg font-bold text-gray-800 mt-1">{eur(totCusto)} €</p>
       </div>
       <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
-        <p class="text-xs text-gray-500 uppercase tracking-wide">Lucro Bruto</p>
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Lucro Empresa</p>
         <p class="text-lg font-bold text-gray-800 mt-1">{eur(totLucro)} €</p>
       </div>
     </div>
+
+    {totValorTecnico > 0 && (
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-center justify-between">
+        <span class="text-xs text-amber-800 uppercase tracking-wide font-medium">Pago a técnicos externos (deslocação)</span>
+        <span class="text-base font-bold text-amber-800">{eur(totValorTecnico)} €</span>
+      </div>
+    )}
 
     <!-- RESULTADO LÍQUIDO -->
     <div class="grid grid-cols-2 gap-3 mb-4">
@@ -168,7 +185,7 @@ const exportData = {
       <div class={`rounded-xl p-4 shadow-sm border text-center ${resultadoLiquido >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
         <p class="text-xs text-gray-500 uppercase tracking-wide">Resultado Líquido</p>
         <p class={`text-lg font-bold mt-1 ${resultadoLiquido >= 0 ? 'text-green-700' : 'text-red-700'}`}>{eur(resultadoLiquido)} €</p>
-        <p class="text-[10px] text-gray-400 mt-0.5">Lucro bruto − despesas gerais</p>
+        <p class="text-[10px] text-gray-400 mt-0.5">Lucro empresa − despesas gerais</p>
       </div>
     </div>
 
@@ -183,7 +200,8 @@ const exportData = {
               <th class="px-4 py-3 font-semibold">Cliente</th>
               <th class="px-4 py-3 font-semibold text-right">Valor Orçamento</th>
               <th class="px-4 py-3 font-semibold text-right">Custo Material</th>
-              <th class="px-4 py-3 font-semibold text-right">Lucro</th>
+              <th class="px-4 py-3 font-semibold text-right">Valor Técnico</th>
+              <th class="px-4 py-3 font-semibold text-right">Lucro Empresa</th>
             </tr>
           </thead>
           <tbody>
@@ -192,9 +210,11 @@ const exportData = {
                 <td class="px-4 py-3">
                   <span class="font-medium text-gray-800">{l.cliente_nome}</span>
                   {l.numero && <span class="block text-xs text-gray-400">{l.numero} · {l.data}</span>}
+                  {l.tecnico && <span class="block text-xs text-amber-700 mt-0.5">Técnico: {l.tecnico}</span>}
                 </td>
                 <td class="px-4 py-3 text-right text-gray-700">{eur(l.total)} €</td>
                 <td class="px-4 py-3 text-right text-gray-700">{l.custo > 0 ? `${eur(l.custo)} €` : '—'}</td>
+                <td class="px-4 py-3 text-right text-amber-700">{l.valorTecnico > 0 ? `${eur(l.valorTecnico)} €` : '—'}</td>
                 <td class="px-4 py-3 text-right font-semibold text-green-700">{eur(l.lucro)} €</td>
               </tr>
             ))}
@@ -204,6 +224,7 @@ const exportData = {
               <td class="px-4 py-3">Totais</td>
               <td class="px-4 py-3 text-right">{eur(totOrcamento)} €</td>
               <td class="px-4 py-3 text-right">{eur(totCusto)} €</td>
+              <td class="px-4 py-3 text-right text-amber-700">{eur(totValorTecnico)} €</td>
               <td class="px-4 py-3 text-right text-green-700">{eur(totLucro)} €</td>
             </tr>
           </tfoot>
@@ -280,14 +301,14 @@ const exportData = {
     document.getElementById('export-excel')?.addEventListener('click', () => {
       const lines: string[] = [];
       lines.push('sep=;');
-      lines.push(['Cliente', 'Nº Orçamento', 'Data', 'Valor Orçamento (€)', 'Custo Material (€)', 'Lucro (€)'].join(';'));
+      lines.push(['Cliente', 'Nº Orçamento', 'Data', 'Valor Orçamento (€)', 'Custo Material (€)', 'Técnico', 'Valor Técnico (€)', 'Lucro Empresa (€)'].join(';'));
       for (const l of report.linhas) {
         lines.push([
           esc(l.cliente), esc(l.numero), esc(l.data),
-          euNum(l.total), euNum(l.custo), euNum(l.lucro),
+          euNum(l.total), euNum(l.custo), esc(l.tecnico || ''), euNum(l.valorTecnico), euNum(l.lucro),
         ].join(';'));
       }
-      lines.push(['Totais', '', '', euNum(report.totais.total), euNum(report.totais.custo), euNum(report.totais.lucro)].join(';'));
+      lines.push(['Totais', '', '', euNum(report.totais.total), euNum(report.totais.custo), '', euNum(report.totais.valorTecnico), euNum(report.totais.lucro)].join(';'));
 
       // Despesas gerais
       lines.push('');
@@ -300,7 +321,8 @@ const exportData = {
 
       // Resultado
       lines.push('');
-      lines.push(['Lucro bruto (orçamentos)', euNum(report.totais.lucro)].join(';'));
+      lines.push(['Pago a técnicos externos', euNum(report.totais.valorTecnico)].join(';'));
+      lines.push(['Lucro empresa (orçamentos)', euNum(report.totais.lucro)].join(';'));
       lines.push(['Despesas gerais', euNum(report.totDespesas)].join(';'));
       lines.push(['RESULTADO LÍQUIDO', euNum(report.resultadoLiquido)].join(';'));
 

@@ -82,6 +82,15 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
     const descontoTipo = form.get('desconto_tipo')?.toString() === 'percent' ? 'percent' : 'valor';
     const descontoValor = Math.max(0, Number.parseFloat((form.get('desconto_valor')?.toString() || '0').replace(',', '.')) || 0);
 
+    const statusRaw = form.get('status')?.toString() || 'rascunho';
+    const status = ['rascunho', 'enviado', 'aprovado', 'finalizado', 'rejeitado'].includes(statusRaw) ? statusRaw : 'rascunho';
+    const finalizadoAt = status === 'finalizado' ? new Date() : null;
+
+    const tecnicoExterno = form.get('tecnico_externo')?.toString().trim() || null;
+    const tecnicoValor = tecnicoExterno
+      ? Math.max(0, Number.parseFloat((form.get('tecnico_valor')?.toString() || '0').replace(',', '.')) || 0)
+      : 0;
+
     const itens = parseItens(form);
     const { subtotal, total } = computeTotals(itens, includeIva, ivaRate, descontoTipo, descontoValor);
 
@@ -102,11 +111,13 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
       INSERT INTO orcamentos_diretos (
         cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade,
         cliente_telefone, cliente_email, validade_dias, observacoes,
-        include_iva, iva_rate, desconto_tipo, desconto_valor, subtotal, total, status, public_token, created_by, chamado_id
+        include_iva, iva_rate, desconto_tipo, desconto_valor, subtotal, total, status, public_token, created_by, chamado_id,
+        tecnico_externo, tecnico_valor, finalizado_at
       ) VALUES (
         ${cliente_nome}, ${cliente_nif}, ${cliente_morada}, ${cliente_codigo_postal}, ${cliente_localidade},
         ${cliente_telefone}, ${cliente_email}, ${validade_dias}, ${observacoes},
-        ${includeIva}, ${ivaRate}, ${descontoTipo}, ${descontoValor}, ${subtotal}, ${total}, 'rascunho', ${token}, ${createdBy}, ${chamadoId}
+        ${includeIva}, ${ivaRate}, ${descontoTipo}, ${descontoValor}, ${subtotal}, ${total}, ${status}, ${token}, ${createdBy}, ${chamadoId},
+        ${tecnicoExterno}, ${tecnicoValor}, ${finalizadoAt}
       )
       RETURNING id, created_at
     `;

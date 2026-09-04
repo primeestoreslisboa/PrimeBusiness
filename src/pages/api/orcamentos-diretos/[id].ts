@@ -65,6 +65,15 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       const descontoTipo = form.get('desconto_tipo')?.toString() === 'percent' ? 'percent' : 'valor';
       const descontoValor = Math.max(0, Number.parseFloat((form.get('desconto_valor')?.toString() || '0').replace(',', '.')) || 0);
 
+      // Data de finalização (editável). Só se aplica quando o estado é finalizado.
+      const finalizadoAtRaw = form.get('finalizado_at')?.toString().trim() || '';
+      const finalizadoAtParam = /^\d{4}-\d{2}-\d{2}$/.test(finalizadoAtRaw) ? `${finalizadoAtRaw} 12:00:00` : null;
+
+      const tecnicoExterno = form.get('tecnico_externo')?.toString().trim() || null;
+      const tecnicoValor = tecnicoExterno
+        ? Math.max(0, Number.parseFloat((form.get('tecnico_valor')?.toString() || '0').replace(',', '.')) || 0)
+        : 0;
+
       const itens = parseItens(form);
       const { subtotal, total } = computeTotals(itens, includeIva, ivaRate, descontoTipo, descontoValor);
 
@@ -76,7 +85,13 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
           validade_dias=${validade_dias}, observacoes=${observacoes},
           include_iva=${includeIva}, iva_rate=${ivaRate}, desconto_tipo=${descontoTipo}, desconto_valor=${descontoValor},
           subtotal=${subtotal}, total=${total},
-          status=${status}, chamado_id=${chamadoId}, updated_at=NOW()
+          status=${status}, chamado_id=${chamadoId},
+          finalizado_at = CASE
+            WHEN ${status} <> 'finalizado' THEN NULL
+            WHEN ${finalizadoAtParam}::timestamp IS NOT NULL THEN ${finalizadoAtParam}::timestamp
+            ELSE COALESCE(finalizado_at, NOW())
+          END,
+          tecnico_externo=${tecnicoExterno}, tecnico_valor=${tecnicoValor}, updated_at=NOW()
         WHERE id=${id}
       `;
       await sql`DELETE FROM orcamento_direto_itens WHERE orcamento_id=${id}`;

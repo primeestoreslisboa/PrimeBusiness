@@ -20,11 +20,12 @@ if (!chamado) return Astro.redirect('/chamados');
 const tecnicos = await sql`SELECT id, name FROM users WHERE deleted_at IS NULL ORDER BY name`;
 const orcamentos = await sql`SELECT * FROM orcamentos WHERE chamado_id = ${id} ORDER BY created_at DESC`;
 const orcamentosDiretos = await sql`
-  SELECT id, numero, cliente_nome, total, status, include_iva, iva_rate, created_at
+  SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, include_iva, iva_rate, created_at
   FROM orcamentos_diretos
   WHERE chamado_id = ${id}
   ORDER BY created_at DESC
 `;
+const menuItem = 'menu-item flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition';
 const orcDiretoStatus: Record<string, { label: string; cls: string }> = {
   rascunho: { label: 'Rascunho', cls: 'bg-gray-100 text-gray-600' },
   enviado: { label: 'Enviado', cls: 'bg-blue-100 text-blue-700' },
@@ -432,28 +433,48 @@ function getMbWayStatusLabel(status?: string) {
             const oBase = Number.parseFloat(String(o.total ?? '0')) || 0;
             const ob = orcDiretoStatus[o.status] ?? orcDiretoStatus.rascunho;
             return (
-              <div class="flex items-center justify-between px-4 py-3">
-                <div class="min-w-0">
+              <div class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">
+                <a href={`/orcamentos/${o.id}/editar`} class="min-w-0 flex-1">
                   <p class="font-semibold text-gray-800 truncate">{o.numero ?? `Orçamento #${o.id}`} — EUR {eurFmt(oBase)}</p>
                   <p class="text-xs text-gray-400">{o.cliente_nome}{o.include_iva ? ` | com IVA (${oIva.toFixed(0)}%)` : ' | sem IVA'}</p>
-                </div>
-                <div class="flex items-center gap-1">
+                </a>
+                <div class="flex items-center gap-2">
                   <span class={`text-xs px-2 py-0.5 rounded-full font-medium ${ob.cls}`}>{ob.label}</span>
-                  <a href={`/orcamentos/${o.id}/editar`} title="Editar orçamento"
-                     class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                  </a>
-                  <a href={`/api/orcamentos-diretos/${o.id}/pdf`} target="_blank" rel="noopener" title="Ver PDF"
-                     class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                  </a>
-                  <form method="POST" action={`/api/orcamentos-diretos/${o.id}`} data-confirm="Desassociar este orçamento do agendamento?">
-                    <input type="hidden" name="action" value="desassociar_agendamento" />
-                    <button type="submit" title="Desassociar"
-                            class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5m-1.328-4.328a4 4 0 005.656 0l3-3a4 4 0 10-5.656-5.656l-1.5 1.5M4 4l16 16"/></svg>
+                  <div class="relative kebab">
+                    <button type="button" title="Opções" aria-haspopup="true" aria-expanded="false"
+                            class="kebab-toggle w-9 h-9 flex items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
                     </button>
-                  </form>
+                    <div class="kebab-menu hidden absolute right-full mr-1 top-0 w-60 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-[60]">
+                      <button type="button" data-open="modal-email" data-api={`/api/orcamentos-diretos/${o.id}`} data-email={o.cliente_email ?? ''} class={menuItem}>
+                        <svg class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        Enviar por email
+                      </button>
+                      <button type="button" data-open="modal-whatsapp" data-api={`/api/orcamentos-diretos/${o.id}`} data-phone={o.cliente_telefone ?? ''} class={menuItem}>
+                        <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.945C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.737-.98zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                        Enviar por WhatsApp
+                      </button>
+                      <a href={`/api/orcamentos-diretos/${o.id}/pdf`} target="_blank" rel="noopener" class={menuItem}>
+                        <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Ver / Descarregar PDF
+                      </a>
+                      <form method="POST" action={`/api/orcamentos-diretos/${o.id}`} data-confirm="Desassociar este orçamento do agendamento?">
+                        <input type="hidden" name="action" value="desassociar_agendamento" />
+                        <button type="submit" class={menuItem}>
+                          <svg class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5m-1.328-4.328a4 4 0 005.656 0l3-3a4 4 0 10-5.656-5.656l-1.5 1.5M4 4l16 16"/></svg>
+                          Desassociar do agendamento
+                        </button>
+                      </form>
+                      <div class="border-t border-gray-100 my-1"></div>
+                      <form method="POST" action={`/api/orcamentos-diretos/${o.id}`} data-confirm="Eliminar este orçamento? Esta ação é irreversível.">
+                        <input type="hidden" name="action" value="delete" />
+                        <button type="submit" class={`${menuItem} text-red-600 hover:bg-red-50`}>
+                          <svg class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-6 0h6"/></svg>
+                          Remover
+                        </button>
+                      </form>
+                    </div>
+                  </div>
                 </div>
               </div>
             );
@@ -633,15 +654,11 @@ function getMbWayStatusLabel(status?: string) {
         <h3 class="text-base font-semibold text-gray-800">Finalizar com Retorno</h3>
         <button id="return-modal-close" type="button" class="w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">x</button>
       </div>
-      <p class="text-sm text-gray-600 mb-3">Defina data/hora e descricao do proximo atendimento.</p>
+      <p class="text-sm text-gray-600 mb-3">Defina a data, o horário (janela de {intervaloHoras}h) e a descrição do próximo atendimento.</p>
       <div class="space-y-3">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Data e hora *</label>
-          <input
-            id="return-datetime-input"
-            type="datetime-local"
-            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none"
-          />
+          <label class="block text-sm font-medium text-gray-700 mb-1">Data e horário *</label>
+          <SlotPicker hiddenId="return-datetime-input" intervaloHoras={intervaloHoras} minToday={true} />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Descricao do retorno *</label>
@@ -728,6 +745,125 @@ function getMbWayStatusLabel(status?: string) {
     </div>
   </div>
 </div>
+
+<!-- Modais de ação do orçamento (email / WhatsApp) -->
+<div data-modal="modal-email" class="fixed inset-0 z-[90] hidden" aria-hidden="true">
+  <div class="modal-backdrop absolute inset-0 bg-black/40"></div>
+  <div class="absolute inset-0 flex items-end sm:items-center sm:justify-center p-0 sm:p-4">
+    <div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-gray-800">Enviar por email</h3>
+        <button type="button" class="modal-close w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">✕</button>
+      </div>
+      <form method="POST" class="space-y-3">
+        <input type="hidden" name="action" value="send_email" />
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email do cliente</label>
+          <input type="text" name="to_email" required inputmode="email" placeholder="cliente@email.com; outro@email.com"
+                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none" />
+          <p class="text-xs text-gray-400 mt-1">Pode enviar para vários destinatários, separados por ponto e vírgula (;).</p>
+          <p class="text-xs text-gray-400">Vai ser gerado o PDF do orçamento e anexado ao email.</p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Comentário (opcional)</label>
+          <textarea name="mensagem" rows="4" placeholder="Mensagem a incluir no corpo do email…"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none resize-none"></textarea>
+          <p class="text-xs text-gray-400 mt-1">Este texto é adicionado ao corpo do email enviado ao cliente.</p>
+        </div>
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button type="button" class="modal-close py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50">Cancelar</button>
+          <button type="submit" class="py-2.5 rounded-lg text-sm font-semibold bg-red-700 hover:bg-red-800 text-white">Enviar email</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div data-modal="modal-whatsapp" class="fixed inset-0 z-[90] hidden" aria-hidden="true">
+  <div class="modal-backdrop absolute inset-0 bg-black/40"></div>
+  <div class="absolute inset-0 flex items-end sm:items-center sm:justify-center p-0 sm:p-4">
+    <div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-gray-800">Enviar por WhatsApp</h3>
+        <button type="button" class="modal-close w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">✕</button>
+      </div>
+      <form method="POST" target="_blank" class="space-y-3">
+        <input type="hidden" name="action" value="send_whatsapp" />
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Telefone do cliente</label>
+          <input type="tel" name="to_phone" required
+                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none" />
+          <p class="text-xs text-gray-400 mt-1">Abre o WhatsApp com a mensagem e o link do orçamento (PDF descarregável).</p>
+        </div>
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button type="button" class="modal-close py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50">Cancelar</button>
+          <button type="submit" class="py-2.5 rounded-lg text-sm font-semibold bg-green-600 hover:bg-green-700 text-white">Abrir WhatsApp</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Menu de três pontinhos + modais de email/WhatsApp do orçamento.
+  function closeOrcModals() {
+    document.querySelectorAll('[data-modal]').forEach(m => { m.classList.add('hidden'); m.setAttribute('aria-hidden', 'true'); });
+    document.body.style.overflow = '';
+  }
+  document.querySelectorAll('[data-open]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-open')!;
+      const api = btn.getAttribute('data-api') || '';
+      const modal = document.querySelector(`[data-modal="${id}"]`);
+      if (!modal) return;
+      const form = modal.querySelector('form') as HTMLFormElement | null;
+      if (form) {
+        form.action = api;
+        const emailInput = form.querySelector('input[name="to_email"]') as HTMLInputElement | null;
+        if (emailInput) emailInput.value = btn.getAttribute('data-email') || '';
+        const phoneInput = form.querySelector('input[name="to_phone"]') as HTMLInputElement | null;
+        if (phoneInput) phoneInput.value = btn.getAttribute('data-phone') || '';
+      }
+      modal.classList.remove('hidden');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    });
+  });
+  document.querySelectorAll('.modal-close, .modal-backdrop').forEach(el => el.addEventListener('click', closeOrcModals));
+
+  function closeAllKebabs() {
+    document.querySelectorAll('.kebab-menu').forEach(m => m.classList.add('hidden'));
+    document.querySelectorAll('.kebab-toggle').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  }
+  document.querySelectorAll('.kebab-toggle').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = btn.parentElement?.querySelector('.kebab-menu') as HTMLElement | null;
+      const isOpen = !!menu && !menu.classList.contains('hidden');
+      closeAllKebabs();
+      if (menu && !isOpen) {
+        menu.classList.remove('hidden');
+        (btn as HTMLElement).setAttribute('aria-expanded', 'true');
+        // Posiciona como fixed para escapar do overflow-hidden do card.
+        const r = (btn as HTMLElement).getBoundingClientRect();
+        const mw = menu.offsetWidth;
+        const mh = menu.offsetHeight;
+        menu.style.position = 'fixed';
+        menu.style.right = 'auto';
+        menu.style.marginRight = '0';
+        let left = r.left - mw - 6;
+        if (left < 8) left = Math.min(r.right + 6, window.innerWidth - mw - 8);
+        let top = r.top;
+        if (top + mh > window.innerHeight - 8) top = window.innerHeight - mh - 8;
+        if (top < 8) top = 8;
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+      }
+    });
+  });
+  document.addEventListener('click', closeAllKebabs);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeOrcModals(); closeAllKebabs(); } });
+</script>
 
 <script>
   const postalInput = document.getElementById('codigo-postal-input');
@@ -880,12 +1016,17 @@ function getMbWayStatusLabel(status?: string) {
   function openReturnModal(form) {
     pendingReturnForm = form;
     if (returnDatetimeInput) returnDatetimeInput.value = '';
+    // Limpa os campos visíveis do SlotPicker dentro da modal.
+    const spDate = returnModal?.querySelector('.sp-date') as HTMLInputElement | null;
+    const spSlot = returnModal?.querySelector('.sp-slot') as HTMLSelectElement | null;
+    if (spDate) spDate.value = '';
+    if (spSlot) spSlot.value = '';
     if (returnDescriptionInput) returnDescriptionInput.value = '';
     returnModalError?.classList.add('hidden');
     returnModal?.classList.remove('hidden');
     returnModal?.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
-    setTimeout(() => returnDatetimeInput?.focus(), 50);
+    setTimeout(() => spDate?.focus(), 50);
   }
 
   function closeReturnModal() {

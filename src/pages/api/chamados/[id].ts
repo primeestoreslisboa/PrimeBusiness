@@ -138,7 +138,7 @@ async function handleUpdate(id: string, formData: FormData, redirect: (path: str
       WHERE id = ${id}
     `;
     if (quickStatus === 'concluido') {
-      await sql`UPDATE orcamentos_diretos SET status='finalizado', updated_at=NOW() WHERE chamado_id = ${id} AND status <> 'rejeitado'`;
+      await sql`UPDATE orcamentos_diretos SET status='finalizado', finalizado_at=COALESCE(finalizado_at, NOW()), updated_at=NOW() WHERE chamado_id = ${id} AND status <> 'rejeitado'`;
     }
     return redirect(`/chamados/${id}?success=updated`);
   }
