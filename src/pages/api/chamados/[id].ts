@@ -1,6 +1,7 @@
 ﻿import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
 import { getIvaRate, getAgendamentoIntervaloHoras } from '../../../lib/settings';
+import { genToken, buildNumero } from '../../../lib/orcamentos';
 
 async function handleUpdate(id: string, formData: FormData, redirect: (path: string) => Response, userRole?: string) {
   const sql = getDb();
@@ -103,6 +104,37 @@ async function handleUpdate(id: string, formData: FormData, redirect: (path: str
         updated_at = NOW()
       WHERE id = ${id}
     `;
+
+    // Se o agendamento não tem orçamento, gera um automaticamente com o valor pago
+    // (usando os dados do agendamento), já finalizado — para constar nos relatórios.
+    if (paymentMethod !== 'nao_necessario' && totalFinal > 0) {
+      const [cnt] = await sql`SELECT COUNT(*)::int AS n FROM orcamentos_diretos WHERE chamado_id = ${id}`;
+      if ((cnt?.n ?? 0) === 0) {
+        const token = genToken();
+        const descricaoItem = (current.descricao?.toString().trim()) || 'Serviço realizado';
+        const [orc] = await sql`
+          INSERT INTO orcamentos_diretos (
+            cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade,
+            cliente_telefone, cliente_email, validade_dias, observacoes,
+            include_iva, iva_rate, desconto_tipo, desconto_valor, subtotal, total,
+            status, public_token, chamado_id, finalizado_at
+          ) VALUES (
+            ${current.nome}, ${current.nif ?? null}, ${current.morada}, ${current.codigo_postal}, ${current.cidade},
+            ${current.telefone}, ${current.email}, 30,
+            ${'Orçamento gerado automaticamente ao confirmar o pagamento do agendamento.'},
+            false, 0, 'valor', 0, ${totalFinal}, ${totalFinal},
+            'finalizado', ${token}, ${id}, NOW()
+          )
+          RETURNING id, created_at
+        `;
+        const numero = buildNumero(orc.id, new Date(orc.created_at));
+        await sql`UPDATE orcamentos_diretos SET numero = ${numero} WHERE id = ${orc.id}`;
+        await sql`
+          INSERT INTO orcamento_direto_itens (orcamento_id, descricao, quantidade, preco_unitario, largura, altura, ordem)
+          VALUES (${orc.id}, ${descricaoItem}, 1, ${totalFinal}, NULL, NULL, 0)
+        `;
+      }
+    }
 
     return redirect(`/chamados/${id}?success=payment_confirmed`);
   }
