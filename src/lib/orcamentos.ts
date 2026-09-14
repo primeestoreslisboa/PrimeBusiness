@@ -91,10 +91,12 @@ export function computeDesmembramento(
   tecnicoValor: string | number | null | undefined,
 ) {
   const externo = !!(tecnicoExterno && String(tecnicoExterno).trim());
-  const valorBase = externo ? Math.max(0, num(tecnicoValor)) : 0;
-  const valorTecnico = externo ? valorBase + custoMaterial : 0;
-  const lucroEmpresa = externo ? total - valorTecnico : total - custoMaterial;
-  return { externo, valorBase, valorTecnico, lucroEmpresa };
+  // Valor do técnico = apenas o que lhe é pago (mão-de-obra/deslocação).
+  // O custo de material é contabilizado à parte (coluna própria); o lucro
+  // da empresa subtrai ambos, sem duplicar o material.
+  const valorTecnico = externo ? Math.max(0, num(tecnicoValor)) : 0;
+  const lucroEmpresa = total - custoMaterial - valorTecnico;
+  return { externo, valorTecnico, lucroEmpresa };
 }
 
 export function computeTotals(
