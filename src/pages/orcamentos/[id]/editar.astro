@@ -2,7 +2,7 @@
 import Layout from '../../../layouts/Layout.astro';
 import OrcamentoForm from '../../../components/OrcamentoForm.astro';
 import { getDb } from '../../../lib/db';
-import { getIvaRate, getMargemVenda, calcPrecoVenda } from '../../../lib/settings';
+import { getIvaRate } from '../../../lib/settings';
 import { loadOrcamento } from '../../../lib/orcamentos';
 
 const user = Astro.locals.user;
@@ -14,11 +14,10 @@ if (!loaded) return Astro.redirect('/orcamentos?error=not_found');
 const { orc, itens, faturas } = loaded;
 
 const ivaRate = await getIvaRate(23);
-const margem = await getMargemVenda(400);
 const error = Astro.url.searchParams.get('error');
 const success = Astro.url.searchParams.get('success');
-const produtosRaw = await sql`SELECT id, nome, custo, preco, unidade FROM servicos WHERE ativo = true ORDER BY nome`;
-const produtos = produtosRaw.map((p: any) => ({ id: p.id, nome: p.nome, unidade: p.unidade, venda: calcPrecoVenda(p.custo, margem, Number(p.preco)) }));
+const produtosRaw = await sql`SELECT id, nome, preco, unidade FROM servicos WHERE ativo = true ORDER BY nome`;
+const produtos = produtosRaw.map((p: any) => ({ id: p.id, nome: p.nome, unidade: p.unidade, venda: Number(p.preco) || 0 }));
 
 let chamadosAbertos = await sql`
   SELECT id, nome, nif, telefone, email, morada, codigo_postal, cidade, horario_agendado

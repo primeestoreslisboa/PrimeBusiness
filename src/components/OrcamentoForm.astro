@@ -299,7 +299,8 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
 <script>
   const form = document.getElementById('orc-form') as HTMLFormElement | null;
   if (form) {
-    const ivaRate = parseFloat(form.dataset.ivaRate || '23') || 23;
+    const parsedIva = parseFloat(form.dataset.ivaRate || '');
+    const ivaRate = Number.isFinite(parsedIva) ? parsedIva : 23;
     const list = document.getElementById('itens-list')!;
     const tmpl = document.getElementById('item-template') as HTMLTemplateElement;
     const includeIva = document.getElementById('include-iva') as HTMLInputElement;

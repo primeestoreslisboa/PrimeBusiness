@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
-import { getMargemVenda, calcPrecoVenda } from '../../../lib/settings';
+import { calcPrecoVenda, normalizeMargem } from '../../../lib/settings';
 
 export const POST: APIRoute = async ({ params, request, redirect }) => {
   const { id } = params;
@@ -30,9 +30,9 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       const custo    = parseFloat((fd.get('custo')?.toString() || '0').replace(',', '.'));
       const unidade  = fd.get('unidade')?.toString().trim() || 'unidade';
       const ativo    = fd.get('ativo') === 'true';
-      const margem   = await getMargemVenda(400);
+      const margem   = normalizeMargem(fd.get('margem_pct')?.toString(), 250);
       const preco    = calcPrecoVenda(custo, margem);
-      await sql`UPDATE servicos SET nome=${nome}, descricao=${descricao}, custo=${custo}, preco=${preco}, unidade=${unidade}, ativo=${ativo} WHERE id=${id}`;
+      await sql`UPDATE servicos SET nome=${nome}, descricao=${descricao}, custo=${custo}, preco=${preco}, unidade=${unidade}, ativo=${ativo}, margem_pct=${margem} WHERE id=${id}`;
       return redirect(`/admin/servicos/${id}?success=1`);
     } catch {
       return redirect(`/admin/servicos/${id}?error=server`);

@@ -2,13 +2,12 @@
 import Layout from '../../layouts/Layout.astro';
 import OrcamentoForm from '../../components/OrcamentoForm.astro';
 import { getDb } from '../../lib/db';
-import { getIvaRate, getMargemVenda, calcPrecoVenda } from '../../lib/settings';
+import { getIvaRate } from '../../lib/settings';
 
 const user = Astro.locals.user;
 const sql = getDb();
 const error = Astro.url.searchParams.get('error');
 const ivaRate = await getIvaRate(23);
-const margem = await getMargemVenda(400);
 const chamadosAbertos = await sql`
   SELECT id, nome, nif, telefone, email, morada, codigo_postal, cidade, horario_agendado
   FROM chamados
@@ -16,8 +15,8 @@ const chamadosAbertos = await sql`
   ORDER BY horario_agendado DESC
   LIMIT 100
 `;
-const produtosRaw = await sql`SELECT id, nome, custo, preco, unidade FROM servicos WHERE ativo = true ORDER BY nome`;
-const produtos = produtosRaw.map((p: any) => ({ id: p.id, nome: p.nome, unidade: p.unidade, venda: calcPrecoVenda(p.custo, margem, Number(p.preco)) }));
+const produtosRaw = await sql`SELECT id, nome, preco, unidade FROM servicos WHERE ativo = true ORDER BY nome`;
+const produtos = produtosRaw.map((p: any) => ({ id: p.id, nome: p.nome, unidade: p.unidade, venda: Number(p.preco) || 0 }));
 
 const params = Astro.url.searchParams;
 const chamadoId = params.get('chamado_id');

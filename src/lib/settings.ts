@@ -89,12 +89,11 @@ export async function getAgendamentoIntervaloHoras(fallback = 3): Promise<number
   return parsed;
 }
 
-export async function getMargemVenda(fallback = 400): Promise<number> {
-  const raw = await getSetting('margem_venda_pct', String(fallback));
-  const parsed = Number.parseFloat(String(raw).replace(',', '.'));
+/** Normaliza uma margem (%) — mínimo 1, máximo 10000; fallback quando inválida. */
+export function normalizeMargem(raw: string | number | null | undefined, fallback = 250): number {
+  const parsed = Number.parseFloat(String(raw ?? '').replace(',', '.'));
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  if (parsed > 10000) return 10000;
-  return parsed;
+  return Math.min(10000, parsed);
 }
 
 /** Preço de venda = custo × (margem/100). Sem custo, usa o preço guardado. */
