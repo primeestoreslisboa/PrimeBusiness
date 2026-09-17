@@ -14,12 +14,9 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
     const paymentBankIban = form.get('payment_bank_iban')?.toString().trim() || '';
     const paymentMbwayPhoneEnabled = form.get('payment_mbway_phone_enabled') === 'on';
     const paymentMbwayPhone = form.get('payment_mbway_phone')?.toString().trim() || '';
-    const ivaRateRaw = form.get('iva_rate')?.toString().trim() || '23';
     const bookingNotifyEmails = form.get('booking_notify_emails')?.toString().trim() || '';
     const bookingNotifyWhatsappNumbers = form.get('booking_notify_whatsapp_numbers')?.toString().trim() || '';
     const bookingNotifyWhatsappCallmebotApiKey = form.get('booking_notify_whatsapp_callmebot_apikey')?.toString().trim() || '';
-    const ivaRateNum = Number.parseFloat(ivaRateRaw.replace(',', '.'));
-    const ivaRate = Number.isFinite(ivaRateNum) ? Math.min(100, Math.max(0, ivaRateNum)) : 23;
     const intervaloRaw = form.get('agendamento_intervalo_horas')?.toString().trim() || '3';
     const intervaloNum = Number.parseInt(intervaloRaw, 10);
     const intervaloHoras = Number.isFinite(intervaloNum) ? Math.min(12, Math.max(1, intervaloNum)) : 3;
@@ -30,7 +27,6 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
     await setSetting('payment_bank_iban', paymentBankIban);
     await setSettingBool('payment_mbway_phone_enabled', paymentMbwayPhoneEnabled);
     await setSetting('payment_mbway_phone', paymentMbwayPhone);
-    await setSetting('iva_rate', ivaRate.toString());
     await setSetting('agendamento_intervalo_horas', intervaloHoras.toString());
     await setSetting('booking_notify_emails', bookingNotifyEmails);
     await setSetting('booking_notify_whatsapp_numbers', bookingNotifyWhatsappNumbers);

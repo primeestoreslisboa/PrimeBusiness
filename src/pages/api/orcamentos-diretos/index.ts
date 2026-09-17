@@ -1,6 +1,5 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
-import { getIvaRate } from '../../../lib/settings';
 import { buildNumero, computeTotals, genToken } from '../../../lib/orcamentos';
 
 export type ParsedItem = { descricao: string; quantidade: number; preco_unitario: number; largura: number | null; altura: number | null; ordem: number };
@@ -52,10 +51,10 @@ export function parseFaturas(form: FormData): ParsedFatura[] {
   return faturas;
 }
 
-export function parseIncludeIva(raw: FormDataEntryValue | null | undefined) {
-  if (raw == null) return false;
-  const v = String(raw).trim().toLowerCase();
-  return v === '1' || v === 'true' || v === 'on' || v === 'yes';
+/** Taxa de IVA escolhida no orçamento. Valores permitidos: 0, 6, 23 (default 23). */
+export function parseIvaRate(raw: FormDataEntryValue | null | undefined): number {
+  const n = Number.parseFloat((raw?.toString() || '').replace(',', '.'));
+  return [0, 6, 23].includes(n) ? n : 23;
 }
 
 export const POST: APIRoute = async ({ locals, request, redirect }) => {
@@ -75,9 +74,8 @@ export const POST: APIRoute = async ({ locals, request, redirect }) => {
     const observacoes = form.get('observacoes')?.toString().trim() || null;
     const validade_dias = Math.max(1, Number.parseInt(form.get('validade_dias')?.toString() || '30', 10) || 30);
 
-    const includeIva = parseIncludeIva(form.get('include_iva'));
-    const defaultIva = await getIvaRate(23);
-    const ivaRate = includeIva ? defaultIva : 0;
+    const ivaRate = parseIvaRate(form.get('iva_rate'));
+    const includeIva = ivaRate > 0;
 
     const descontoTipo = form.get('desconto_tipo')?.toString() === 'percent' ? 'percent' : 'valor';
     const descontoValor = Math.max(0, Number.parseFloat((form.get('desconto_valor')?.toString() || '0').replace(',', '.')) || 0);

@@ -5,7 +5,6 @@ export interface Props {
   action: string;
   actionName?: string | null;
   submitLabel: string;
-  ivaRate: number;
   orc?: any;
   itens?: any[];
   faturas?: any[];
@@ -14,7 +13,7 @@ export interface Props {
   chamadosAbertos?: any[];
   produtos?: any[];
 }
-const { action, actionName = null, submitLabel, ivaRate, orc = null, itens = [], faturas = [], prefill = null, chamadoId = null, chamadosAbertos = [], produtos = [] } = Astro.props;
+const { action, actionName = null, submitLabel, orc = null, itens = [], faturas = [], prefill = null, chamadoId = null, chamadosAbertos = [], produtos = [] } = Astro.props;
 const fmtDataInput = (v: any) => {
   if (!v) return '';
   const d = new Date(v);
@@ -27,14 +26,15 @@ const fmtChamadoOpt = (c: any) => {
   return `#${c.id} · ${c.nome}${c.cidade ? ` (${c.cidade})` : ''}${dt ? ` · ${dt}` : ''}`;
 };
 
-const includeIva = orc ? !!orc.include_iva : true;
+// Taxa de IVA selecionada (guardada no orçamento). Novo orçamento → 23% por defeito.
+const selectedIva = orc ? (orc.include_iva ? num(orc.iva_rate) : 0) : 23;
 const validade = orc ? (orc.validade_dias ?? 30) : 30;
 const descontoTipo = orc?.desconto_tipo === 'percent' ? 'percent' : 'valor';
 const descontoValor = orc ? num(orc.desconto_valor) : 0;
 const rows = itens.length > 0 ? itens : [{ descricao: '', quantidade: 1, preco_unitario: '' }];
 const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none';
 ---
-<form method="POST" action={action} class="space-y-4" id="orc-form" data-iva-rate={ivaRate}>
+<form method="POST" action={action} class="space-y-4" id="orc-form">
   {actionName && <input type="hidden" name="action" value={actionName} />}
 
   <!-- DADOS DO CLIENTE -->
@@ -118,9 +118,9 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
               <input type="checkbox" class="item-m2 accent-red-700" checked={isM2} /> m² (medidas)
             </label>
             <div class={`item-dims flex items-center gap-1 ${isM2 ? '' : 'hidden'}`}>
-              <input type="number" name="item_larg" step="0.01" min="0" placeholder="Largura (m)" value={it.largura ?? ''} class={`${inputCls} item-larg w-24 text-center`} />
+              <input type="number" name="item_alt" step="0.001" min="0" placeholder="Altura (m)" value={it.altura ?? ''} class={`${inputCls} item-alt w-24 text-center`} />
               <span class="text-gray-400">×</span>
-              <input type="number" name="item_alt" step="0.01" min="0" placeholder="Altura (m)" value={it.altura ?? ''} class={`${inputCls} item-alt w-24 text-center`} />
+              <input type="number" name="item_larg" step="0.001" min="0" placeholder="Largura (m)" value={it.largura ?? ''} class={`${inputCls} item-larg w-24 text-center`} />
             </div>
           </div>
 
@@ -193,10 +193,12 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
 
   <!-- TOTAIS / IVA -->
   <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 space-y-3">
-    <label class="flex items-center gap-2 text-sm text-gray-700">
-      <input type="checkbox" name="include_iva" id="include-iva" checked={includeIva} class="w-4 h-4 accent-red-700" />
-      Incluir IVA ({ivaRate}%)
-    </label>
+    <div class="flex items-center gap-2 text-sm text-gray-700">
+      <label class="font-medium" for="iva-rate">IVA</label>
+      <select name="iva_rate" id="iva-rate" class="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">
+        {[0, 6, 23].map(v => <option value={v} selected={selectedIva === v}>{v}%</option>)}
+      </select>
+    </div>
     <div class="flex items-center gap-2 pt-2 border-t border-gray-100">
       <label class="text-sm text-gray-700">Desconto</label>
       <input type="number" name="desconto_valor" id="desconto-valor" min="0" step="0.01" value={descontoValor || ''} placeholder="0"
@@ -275,9 +277,9 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
         <input type="checkbox" class="item-m2 accent-red-700" /> m² (medidas)
       </label>
       <div class="item-dims flex items-center gap-1 hidden">
-        <input type="number" name="item_larg" step="0.01" min="0" placeholder="Largura (m)" class="w-24 text-center px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none item-larg" />
+        <input type="number" name="item_alt" step="0.001" min="0" placeholder="Altura (m)" class="w-24 text-center px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none item-alt" />
         <span class="text-gray-400">×</span>
-        <input type="number" name="item_alt" step="0.01" min="0" placeholder="Altura (m)" class="w-24 text-center px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none item-alt" />
+        <input type="number" name="item_larg" step="0.001" min="0" placeholder="Largura (m)" class="w-24 text-center px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none item-larg" />
       </div>
     </div>
 
@@ -299,11 +301,9 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
 <script>
   const form = document.getElementById('orc-form') as HTMLFormElement | null;
   if (form) {
-    const parsedIva = parseFloat(form.dataset.ivaRate || '');
-    const ivaRate = Number.isFinite(parsedIva) ? parsedIva : 23;
     const list = document.getElementById('itens-list')!;
     const tmpl = document.getElementById('item-template') as HTMLTemplateElement;
-    const includeIva = document.getElementById('include-iva') as HTMLInputElement;
+    const ivaSelect = document.getElementById('iva-rate') as HTMLSelectElement | null;
     const fmt = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
     function recalc() {
@@ -327,15 +327,15 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
       if (desconto < 0) desconto = 0;
       if (desconto > subtotal) desconto = subtotal;
       const base = subtotal - desconto;
-      const ivaOn = includeIva?.checked;
-      const iva = ivaOn ? base * (ivaRate / 100) : 0;
+      const ivaRate = parseFloat(ivaSelect?.value || '0') || 0;
+      const iva = ivaRate > 0 ? base * (ivaRate / 100) : 0;
       const total = base + iva;
       document.getElementById('sum-subtotal')!.textContent = fmt(subtotal) + ' €';
       document.getElementById('sum-desconto')!.textContent = '- ' + fmt(desconto) + ' €';
       document.getElementById('sum-iva')!.textContent = fmt(iva) + ' €';
       document.getElementById('sum-total')!.textContent = fmt(total) + ' €';
       const ivaRow = document.getElementById('sum-iva-row');
-      if (ivaRow) ivaRow.style.display = ivaOn ? '' : 'none';
+      if (ivaRow) ivaRow.style.display = ivaRate > 0 ? '' : 'none';
       const descRow = document.getElementById('sum-desconto-row');
       if (descRow) descRow.style.display = desconto > 0 ? '' : 'none';
     }
@@ -396,7 +396,7 @@ const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm f
     });
 
     list.addEventListener('input', recalc);
-    includeIva?.addEventListener('change', recalc);
+    ivaSelect?.addEventListener('change', recalc);
     document.getElementById('desconto-valor')?.addEventListener('input', recalc);
     document.getElementById('desconto-tipo')?.addEventListener('change', recalc);
     list.querySelectorAll('.orc-item').forEach(bindRow);

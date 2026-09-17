@@ -1,13 +1,13 @@
 import type { APIRoute } from 'astro';
 import { getDb } from '../../../lib/db';
-import { getCompanyInfo, getIvaRate } from '../../../lib/settings';
+import { getCompanyInfo } from '../../../lib/settings';
 import {
   buildOrcamentoPdf,
   computeTotals,
   loadOrcamento,
 } from '../../../lib/orcamentos';
 import { sendOrcamentoDiretoEmail, generateOrcamentoDiretoWhatsAppLink } from '../../../lib/email';
-import { parseItens, parseIncludeIva, parseFaturas } from './index';
+import { parseItens, parseIvaRate, parseFaturas } from './index';
 
 function getBaseUrl(request: Request) {
   // Usa sempre o host real do pedido (correto em dev e em produção,
@@ -58,9 +58,8 @@ export const POST: APIRoute = async ({ params, request, redirect }) => {
       const observacoes = form.get('observacoes')?.toString().trim() || null;
       const validade_dias = Math.max(1, Number.parseInt(form.get('validade_dias')?.toString() || '30', 10) || 30);
 
-      const includeIva = parseIncludeIva(form.get('include_iva'));
-      const defaultIva = await getIvaRate(23);
-      const ivaRate = includeIva ? defaultIva : 0;
+      const ivaRate = parseIvaRate(form.get('iva_rate'));
+      const includeIva = ivaRate > 0;
 
       const descontoTipo = form.get('desconto_tipo')?.toString() === 'percent' ? 'percent' : 'valor';
       const descontoValor = Math.max(0, Number.parseFloat((form.get('desconto_valor')?.toString() || '0').replace(',', '.')) || 0);
