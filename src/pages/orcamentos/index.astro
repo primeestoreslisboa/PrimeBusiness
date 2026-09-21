@@ -13,14 +13,14 @@ const estadosSingulares = ['rascunho', 'enviado', 'aprovado', 'finalizado', 'rej
 let orcamentos;
 if (statusFilter === 'ativos') {
   orcamentos = await sql`
-    SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
+    SELECT id, numero, cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
     FROM orcamentos_diretos
     WHERE status NOT IN ('finalizado', 'rejeitado')
     ORDER BY created_at DESC
   `;
 } else if (estadosSingulares.includes(statusFilter)) {
   orcamentos = await sql`
-    SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
+    SELECT id, numero, cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
     FROM orcamentos_diretos
     WHERE status = ${statusFilter}
     ORDER BY created_at DESC
@@ -28,7 +28,7 @@ if (statusFilter === 'ativos') {
 } else {
   // 'todos' ou qualquer outro valor
   orcamentos = await sql`
-    SELECT id, numero, cliente_nome, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
+    SELECT id, numero, cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
     FROM orcamentos_diretos
     ORDER BY created_at DESC
   `;
@@ -77,6 +77,20 @@ const statusInfo: Record<string, { label: string; cls: string }> = {
 };
 const eur = (n: number) => new Intl.NumberFormat('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const menuItem = 'menu-item flex items-center gap-3 w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition';
+// Duplicar: copia só os dados do cliente para um orçamento novo (sem agendamento, sem itens).
+const buildDuplicarUrl = (o: any) => {
+  const p = new URLSearchParams();
+  const add = (k: string, v: any) => { const s = (v ?? '').toString().trim(); if (s) p.set(k, s); };
+  add('cliente_nome', o.cliente_nome);
+  add('cliente_nif', o.cliente_nif);
+  add('cliente_telefone', o.cliente_telefone);
+  add('cliente_email', o.cliente_email);
+  add('cliente_morada', o.cliente_morada);
+  add('cliente_codigo_postal', o.cliente_codigo_postal);
+  add('cliente_localidade', o.cliente_localidade);
+  const qs = p.toString();
+  return qs ? `/orcamentos/novo?${qs}` : '/orcamentos/novo';
+};
 ---
 <Layout title="Orçamentos" user={user}>
   <div class="py-6 pb-24">
@@ -174,6 +188,10 @@ const menuItem = 'menu-item flex items-center gap-3 w-full text-left px-4 py-2.5
                 <a href={`/api/orcamentos-diretos/${o.id}/pdf`} target="_blank" rel="noopener" class={menuItem}>
                   <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                   Ver / Descarregar PDF
+                </a>
+                <a href={buildDuplicarUrl(o)} class={menuItem}>
+                  <svg class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2M10 20h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                  Duplicar (só dados do cliente)
                 </a>
                 <div class="border-t border-gray-100 my-1"></div>
                 <form method="POST" action={apiUrl} data-confirm="Eliminar este orçamento? Esta ação é irreversível.">
