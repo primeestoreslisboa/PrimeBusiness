@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import ChamadoQuickActions from '../components/ChamadoQuickActions.astro';
 import { getDb } from '../lib/db';
 import { getAgendamentoIntervaloHoras } from '../lib/settings';
 import { timeRangeLabel, dateTimeRangeLabel } from '../lib/horario';
@@ -266,6 +267,39 @@ function buildCopyText(c: any) {
                       Abrir {o.numero ?? `orçamento #${o.id}`}
                     </a>
                   ))}
+                  {c.status !== 'concluido' && c.status !== 'cancelado' && (
+                    <>
+                      <div class="border-t border-gray-100 my-1"></div>
+                      <form method="POST" action={`/api/chamados/${c.id}`} data-confirm="Finalizar este chamado?">
+                        <input type="hidden" name="_method" value="PUT" />
+                        <input type="hidden" name="quick_status" value="concluido" />
+                        <button type="submit" class={`${menuItem} text-green-700 hover:bg-green-50`}>
+                          <svg class="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                          Finalizar chamado
+                        </button>
+                      </form>
+                      <button type="button" class={menuItem} data-cq-retorno={c.id}>
+                        <svg class="w-4 h-4 text-blue-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Finalizar com retorno
+                      </button>
+                      <button type="button" class={`${menuItem} text-amber-700 hover:bg-amber-50`} data-cq-cancelar={c.id}>
+                        <svg class="w-4 h-4 text-amber-600 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Cancelar
+                      </button>
+                    </>
+                  )}
+                  {user.role === 'admin' && (
+                    <>
+                      <div class="border-t border-gray-100 my-1"></div>
+                      <form method="POST" action={`/api/chamados/${c.id}`} data-confirm="Remover este chamado?">
+                        <input type="hidden" name="_method" value="DELETE" />
+                        <button type="submit" class={`${menuItem} text-red-600 hover:bg-red-50`}>
+                          <svg class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3m-6 0h6"/></svg>
+                          Remover
+                        </button>
+                      </form>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -359,4 +393,6 @@ function buildCopyText(c: any) {
       });
     });
   </script>
+
+  <ChamadoQuickActions intervaloHoras={intervaloHoras} />
 </Layout>

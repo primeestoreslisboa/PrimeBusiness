@@ -1,0 +1,147 @@
+---
+// Modais + JS para as ações rápidas de chamado (finalizar com retorno / cancelar),
+// usadas a partir dos menus da lista de chamados e do dashboard.
+import SlotPicker from './SlotPicker.astro';
+export interface Props { intervaloHoras?: number; }
+const { intervaloHoras = 3 } = Astro.props;
+const inputCls = 'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none';
+---
+<!-- Finalizar com Retorno -->
+<div id="cq-return-modal" class="fixed inset-0 z-[95] hidden" aria-hidden="true">
+  <div class="cq-return-close absolute inset-0 bg-black/40"></div>
+  <div class="absolute inset-0 flex items-end sm:items-center sm:justify-center p-0 sm:p-4">
+    <div class="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-4 sm:p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-gray-800">Finalizar com Retorno</h3>
+        <button type="button" class="cq-return-close w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">✕</button>
+      </div>
+      <p class="text-sm text-gray-600 mb-3">Defina a data, o horário (janela de {intervaloHoras}h) e a descrição do próximo atendimento.</p>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Data e horário *</label>
+          <SlotPicker hiddenId="cq-return-datetime" intervaloHoras={intervaloHoras} minToday={true} />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Descrição do retorno *</label>
+          <textarea id="cq-return-desc" rows="4" placeholder="Descreva o que precisa ser feito no retorno..." class={`${inputCls} resize-none`}></textarea>
+        </div>
+      </div>
+      <p id="cq-return-error" class="hidden text-xs text-red-600 mt-2">Preencha data/hora e descrição.</p>
+      <div class="mt-4 grid grid-cols-2 gap-2">
+        <button type="button" class="cq-return-close w-full py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">Voltar</button>
+        <button type="button" id="cq-return-confirm" class="w-full py-2.5 rounded-lg text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white transition">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cancelar -->
+<div id="cq-cancel-modal" class="fixed inset-0 z-[95] hidden" aria-hidden="true">
+  <div class="cq-cancel-close absolute inset-0 bg-black/40"></div>
+  <div class="absolute inset-0 flex items-end sm:items-center sm:justify-center p-0 sm:p-4">
+    <div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-200 p-4 sm:p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-semibold text-gray-800">Cancelar Chamado</h3>
+        <button type="button" class="cq-cancel-close w-8 h-8 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">✕</button>
+      </div>
+      <p class="text-sm text-gray-600 mb-3">Informe o motivo do cancelamento.</p>
+      <textarea id="cq-cancel-reason" rows="4" placeholder="Escreva o motivo..." class={`${inputCls} resize-none`}></textarea>
+      <p id="cq-cancel-error" class="hidden text-xs text-red-600 mt-2">O motivo do cancelamento é obrigatório.</p>
+      <div class="mt-4 grid grid-cols-2 gap-2">
+        <button type="button" class="cq-cancel-close w-full py-2.5 rounded-lg text-sm font-semibold border border-gray-300 text-gray-700 hover:bg-gray-50 transition">Voltar</button>
+        <button type="button" id="cq-cancel-confirm" class="w-full py-2.5 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-700 text-white transition">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const returnModal = document.getElementById('cq-return-modal');
+    const returnDatetime = document.getElementById('cq-return-datetime') as HTMLInputElement | null;
+    const returnDesc = document.getElementById('cq-return-desc') as HTMLTextAreaElement | null;
+    const returnError = document.getElementById('cq-return-error');
+    const cancelModal = document.getElementById('cq-cancel-modal');
+    const cancelReason = document.getElementById('cq-cancel-reason') as HTMLTextAreaElement | null;
+    const cancelError = document.getElementById('cq-cancel-error');
+    let returnId: string | null = null;
+    let cancelId: string | null = null;
+    let submitting = false;
+
+    function submitQuick(id: string, fields: Record<string, string>) {
+      const f = document.createElement('form');
+      f.method = 'POST';
+      f.action = `/api/chamados/${id}`;
+      for (const [k, v] of Object.entries(fields)) {
+        const i = document.createElement('input');
+        i.type = 'hidden'; i.name = k; i.value = v;
+        f.appendChild(i);
+      }
+      document.body.appendChild(f);
+      f.submit();
+    }
+
+    function openReturn(id: string) {
+      returnId = id;
+      if (returnDatetime) returnDatetime.value = '';
+      const spDate = returnModal?.querySelector('.sp-date') as HTMLInputElement | null;
+      const spSlot = returnModal?.querySelector('.sp-slot') as HTMLSelectElement | null;
+      if (spDate) spDate.value = '';
+      if (spSlot) spSlot.value = '';
+      if (returnDesc) returnDesc.value = '';
+      returnError?.classList.add('hidden');
+      returnModal?.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeReturn() { returnModal?.classList.add('hidden'); document.body.style.overflow = ''; }
+
+    function openCancel(id: string) {
+      cancelId = id;
+      if (cancelReason) cancelReason.value = '';
+      cancelError?.classList.add('hidden');
+      cancelModal?.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeCancel() { cancelModal?.classList.add('hidden'); document.body.style.overflow = ''; }
+
+    document.addEventListener('click', (e) => {
+      const t = e.target as Element | null;
+      const rt = t?.closest?.('[data-cq-retorno]');
+      if (rt) { e.preventDefault(); openReturn(rt.getAttribute('data-cq-retorno') || ''); return; }
+      const cc = t?.closest?.('[data-cq-cancelar]');
+      if (cc) { e.preventDefault(); openCancel(cc.getAttribute('data-cq-cancelar') || ''); return; }
+    });
+
+    document.querySelectorAll('.cq-return-close').forEach(el => el.addEventListener('click', closeReturn));
+    document.querySelectorAll('.cq-cancel-close').forEach(el => el.addEventListener('click', closeCancel));
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeReturn(); closeCancel(); } });
+
+    document.getElementById('cq-return-confirm')?.addEventListener('click', async () => {
+      if (submitting || !returnId) return;
+      const dt = (returnDatetime?.value || '').trim();
+      const desc = (returnDesc?.value || '').trim();
+      if (!dt || !desc) { returnError?.classList.remove('hidden'); return; }
+      submitting = true;
+      let allow = '0';
+      try {
+        const res = await fetch(`/api/chamados/conflict?datetime=${encodeURIComponent(dt)}&exclude_id=${encodeURIComponent(returnId)}`, { cache: 'no-store' });
+        if (res.ok) {
+          const d = await res.json();
+          if (d?.conflict) {
+            if (!window.confirm('Horário comprometido por outro agendamento. Agendar mesmo assim?')) { submitting = false; return; }
+            allow = '1';
+          }
+        }
+      } catch { /* ignora e submete */ }
+      submitQuick(returnId, { _method: 'PUT', quick_status: 'concluido_com_retorno', retorno_horario_agendado: dt, retorno_descricao: desc, retorno_allow_conflict: allow });
+    });
+
+    document.getElementById('cq-cancel-confirm')?.addEventListener('click', () => {
+      if (submitting || !cancelId) return;
+      const reason = (cancelReason?.value || '').trim();
+      if (!reason) { cancelError?.classList.remove('hidden'); return; }
+      submitting = true;
+      submitQuick(cancelId, { _method: 'PUT', quick_status: 'cancelado', cancel_reason: reason });
+    });
+  })();
+</script>
