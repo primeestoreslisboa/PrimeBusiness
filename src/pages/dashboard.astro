@@ -76,6 +76,17 @@ for (const c of chamadosMesConsumidos) {
   porDia[d] = (porDia[d] || 0) + 1;
 }
 
+// Folgas (dias inteiros bloqueados para marcações públicas)
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const selDateStr = `${selYear}-${pad2(selMonth + 1)}-${pad2(selDay)}`;
+const folgasMes = await sql`
+  SELECT EXTRACT(DAY FROM data)::int AS dia, to_char(data, 'YYYY-MM-DD') AS iso
+  FROM folgas
+  WHERE EXTRACT(YEAR FROM data) = ${selYear} AND EXTRACT(MONTH FROM data) = ${selMonth + 1}
+`;
+const folgaDias = new Set<number>(folgasMes.map((f: any) => f.dia));
+const isFolga = folgasMes.some((f: any) => f.iso === selDateStr);
+
 const today       = new Date();
 const isToday     = selYear === today.getFullYear() && selMonth === today.getMonth() && selDay === today.getDate();
 const daysInMonth = new Date(selYear, selMonth + 1, 0).getDate();
@@ -193,13 +204,17 @@ function buildCopyText(c: any) {
           const cnt  = porDia[d] || 0;
           const col  = (offset + d - 1) % 7;
           const isWe = col >= 5;
+          const isFolgaDia = folgaDias.has(d);
           return (
             <a href={dayLink(d)}
+               title={isFolgaDia ? 'Folga' : undefined}
                class={`h-12 flex flex-col items-center justify-center border-b border-r border-gray-50 transition relative
-                 ${isSel ? 'bg-red-700' : isTod ? 'bg-red-50' : isWe ? 'bg-gray-50/60 hover:bg-gray-100' : 'hover:bg-gray-50'}`}>
+                 ${isSel ? 'bg-red-700' : isTod ? 'bg-red-50' : isFolgaDia ? 'bg-purple-50 hover:bg-purple-100' : isWe ? 'bg-gray-50/60 hover:bg-gray-100' : 'hover:bg-gray-50'}`}>
               <span class={`text-sm font-medium leading-none
-                ${isSel ? 'text-white' : isTod ? 'text-red-700 font-bold' : isWe ? 'text-gray-400' : 'text-gray-700'}`}>{d}</span>
-              {cnt > 0 && (
+                ${isSel ? 'text-white' : isTod ? 'text-red-700 font-bold' : isFolgaDia ? 'text-purple-700' : isWe ? 'text-gray-400' : 'text-gray-700'}`}>{d}</span>
+              {isFolgaDia ? (
+                <span class={`mt-0.5 text-[10px] leading-none font-semibold ${isSel ? 'text-purple-200' : 'text-purple-600'}`}>Folga</span>
+              ) : cnt > 0 && (
                 <span class={`mt-0.5 text-xs leading-none font-semibold ${isSel ? 'text-red-200' : 'text-red-600'}`}>{cnt}</span>
               )}
             </a>
@@ -212,10 +227,25 @@ function buildCopyText(c: any) {
       <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <h2 class="font-semibold text-gray-800 flex items-center gap-2">
           Agenda - {selDay} de {MONTHS[selMonth]}
+          {isFolga && <span class="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded-full">Folga</span>}
           {chamadosDiaConsumidos.length > 0 && <span class="bg-red-100 text-red-800 text-xs px-2 py-0.5 rounded-full">{chamadosDiaConsumidos.length}</span>}
         </h2>
-        <a href="/chamados/novo" class="text-sm text-green-600 font-medium">+ Novo</a>
+        <div class="flex items-center gap-3">
+          <form method="POST" action="/api/folgas" data-confirm={isFolga ? 'Remover a folga deste dia?' : 'Marcar este dia como folga? Deixa de aceitar marcações pelo site.'}>
+            <input type="hidden" name="action" value={isFolga ? 'remover' : 'bloquear'} />
+            <input type="hidden" name="data" value={selDateStr} />
+            <button type="submit" class={`text-sm font-medium ${isFolga ? 'text-gray-600 hover:text-gray-800' : 'text-purple-700 hover:text-purple-900'}`}>
+              {isFolga ? 'Remover folga' : 'Marcar folga'}
+            </button>
+          </form>
+          <a href="/chamados/novo" class="text-sm text-green-600 font-medium">+ Novo</a>
+        </div>
       </div>
+      {isFolga && (
+        <div class="px-4 py-2 bg-purple-50 border-b border-purple-100 text-xs text-purple-800">
+          Dia de folga: o site não mostra horários disponíveis nesta data. Pode na mesma criar chamados manualmente.
+        </div>
+      )}
       {chamadosDia.length === 0 ? (
         <div class="px-4 py-8 text-center text-gray-400">
           <p class="text-4xl mb-2">Agenda</p>

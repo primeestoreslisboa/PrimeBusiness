@@ -73,6 +73,9 @@ export const GET: APIRoute = async ({ url }) => {
           AND c.horario_agendado < (s.slot_at + make_interval(hours => ${slotDuration}))
           AND (c.horario_agendado + make_interval(hours => ${slotDuration})) > s.slot_at
       )
+        AND NOT EXISTS (
+          SELECT 1 FROM folgas f WHERE f.data = s.slot_at::date
+        )
         AND s.slot_at >= (now() + interval '1 hour')
       ORDER BY s.slot_at ASC
     `;
@@ -125,6 +128,13 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const sql = getDb();
+    const [folga] = await sql`
+      SELECT data FROM folgas WHERE data = ${horario_agendado.slice(0, 10)} LIMIT 1
+    `;
+    if (folga) {
+      return json({ ok: false, error: 'slot_unavailable' }, 409);
+    }
+
     const [occupied] = await sql`
       SELECT id
       FROM chamados
