@@ -4,35 +4,51 @@ import { getDb } from '../../lib/db';
 import SlotPicker from '../../components/SlotPicker.astro';
 import { num } from '../../lib/orcamentos';
 import { getAgendamentoIntervaloHoras } from '../../lib/settings';
+import { DIAS_ANTIGO } from '../api/orcamentos-diretos/rejeitar-antigos';
 
 const user = Astro.locals.user;
 const sql = getDb();
 // Filtro por estado. Padrão = "ativos" (tudo exceto finalizado/rejeitado).
-const statusFilter = Astro.url.searchParams.get('status') || 'ativos';
+// "antigos" = enviados criados há mais de DIAS_ANTIGO dias.
 const estadosSingulares = ['rascunho', 'enviado', 'aprovado', 'finalizado', 'rejeitado'];
-let orcamentos;
-if (statusFilter === 'ativos') {
-  orcamentos = await sql`
-    SELECT id, numero, cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
-    FROM orcamentos_diretos
-    WHERE status NOT IN ('finalizado', 'rejeitado')
-    ORDER BY created_at DESC
-  `;
-} else if (estadosSingulares.includes(statusFilter)) {
-  orcamentos = await sql`
-    SELECT id, numero, cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
-    FROM orcamentos_diretos
-    WHERE status = ${statusFilter}
-    ORDER BY created_at DESC
-  `;
-} else {
-  // 'todos' ou qualquer outro valor
-  orcamentos = await sql`
-    SELECT id, numero, cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
-    FROM orcamentos_diretos
-    ORDER BY created_at DESC
-  `;
-}
+const statusRaw = Astro.url.searchParams.get('status') || 'ativos';
+const statusFilter = ['ativos', 'antigos', 'todos', ...estadosSingulares].includes(statusRaw) ? statusRaw : 'todos';
+// Pesquisa por nome do cliente ou número do orçamento (ex.: "Silva", "ORC-2026", "#12", "12").
+const q = (Astro.url.searchParams.get('q') || '').trim();
+const qLike = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
+const qId = /^#?\d+$/.test(q) ? Number.parseInt(q.replace('#', ''), 10) : null;
+const orcamentos = await sql`
+  SELECT id, numero, cliente_nome, cliente_nif, cliente_morada, cliente_codigo_postal, cliente_localidade, cliente_email, cliente_telefone, total, status, enviado_via, chamado_id, created_at
+  FROM orcamentos_diretos
+  WHERE (
+      ${statusFilter} = 'todos'
+      OR (${statusFilter} = 'ativos' AND status NOT IN ('finalizado', 'rejeitado'))
+      OR (${statusFilter} = 'antigos' AND status = 'enviado'
+          AND created_at < NOW() - make_interval(days => ${DIAS_ANTIGO}))
+      OR status = ${statusFilter}
+    )
+    AND (
+      ${q} = ''
+      OR cliente_nome ILIKE ${qLike}
+      OR numero ILIKE ${qLike}
+      OR id = ${qId}
+    )
+  ORDER BY created_at DESC
+`;
+// Nº de orçamentos enviados com mais de DIAS_ANTIGO dias (para o botão de rejeição em massa).
+const [{ n: totalAntigos }] = await sql`
+  SELECT COUNT(*)::int AS n FROM orcamentos_diretos
+  WHERE status = 'enviado'
+    AND created_at < NOW() - make_interval(days => ${DIAS_ANTIGO})
+`;
+const filtroHref = (status: string) => {
+  const p = new URLSearchParams();
+  if (status !== 'ativos') p.set('status', status);
+  if (q) p.set('q', q);
+  const s = p.toString();
+  return s ? `?${s}` : '/orcamentos';
+};
+const limparPesquisaHref = statusFilter === 'ativos' ? '/orcamentos' : `?status=${statusFilter}`;
 const chamadosAbertos = await sql`
   SELECT id, nome, cidade, horario_agendado
   FROM chamados
@@ -54,6 +70,10 @@ const successMessages: Record<string, string> = {
   deleted: 'Orçamento removido.',
   created: 'Orçamento criado.',
   desassociado: 'Orçamento desassociado do agendamento.',
+  rejeitados_antigos: (() => {
+    const n = Number.parseInt(Astro.url.searchParams.get('n') || '0', 10) || 0;
+    return n === 1 ? '1 orçamento antigo marcado como rejeitado.' : `${n} orçamentos antigos marcados como rejeitados.`;
+  })(),
 };
 const errorMessages: Record<string, string> = {
   no_email: 'Indique um email de destino.',
@@ -99,9 +119,23 @@ const buildDuplicarUrl = (o: any) => {
       <a href="/orcamentos/novo" class="bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition">+ Novo</a>
     </div>
 
+    <form method="GET" action="/orcamentos" role="search" class="mb-3">
+      {statusFilter !== 'ativos' && <input type="hidden" name="status" value={statusFilter} />}
+      <div class="relative">
+        <svg class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z"/></svg>
+        <input type="text" enterkeyhint="search" name="q" value={q} placeholder="Pesquisar por nome ou nº de orçamento…" autocomplete="off"
+               class="w-full pl-9 pr-20 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-600 outline-none bg-white" />
+        <div class="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {q && <a href={limparPesquisaHref} data-filtro-link title="Limpar pesquisa" class="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100">✕</a>}
+          <button type="submit" class="px-3 py-1.5 rounded-md text-xs font-semibold bg-red-700 hover:bg-red-800 text-white">Pesquisar</button>
+        </div>
+      </div>
+    </form>
+
     <div id="filtros" class="flex gap-2 overflow-x-auto pb-1 mb-4">
       {[
         { v: 'ativos', label: 'Ativos' },
+        { v: 'antigos', label: `Enviados +${DIAS_ANTIGO} dias${totalAntigos ? ` (${totalAntigos})` : ''}` },
         { v: 'todos', label: 'Todos' },
         { v: 'rascunho', label: 'Rascunho' },
         { v: 'enviado', label: 'Enviado' },
@@ -110,7 +144,7 @@ const buildDuplicarUrl = (o: any) => {
         { v: 'rejeitado', label: 'Rejeitado' },
       ].map(f => (
         <a
-          href={f.v === 'ativos' ? '/orcamentos' : `?status=${f.v}`}
+          href={filtroHref(f.v)}
           class={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition ${statusFilter === f.v ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
         >{f.label}</a>
       ))}
@@ -119,11 +153,29 @@ const buildDuplicarUrl = (o: any) => {
     {success && <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">✅ {successMessages[success] ?? 'Operação realizada com sucesso.'}</div>}
     {error && <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">❌ {errorMessages[error] ?? 'Ocorreu um erro a processar o pedido.'}</div>}
 
-    {orcamentos.length === 0 && (
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center text-gray-500">
-        <p class="mb-3">Ainda não há orçamentos.</p>
-        <a href="/orcamentos/novo" class="text-red-700 font-medium hover:underline">Criar o primeiro orçamento →</a>
+    {statusFilter === 'antigos' && totalAntigos > 0 && (
+      <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <p class="text-sm text-amber-800 flex-1">
+          {totalAntigos === 1 ? 'Há 1 orçamento enviado' : `Há ${totalAntigos} orçamentos enviados`} há mais de {DIAS_ANTIGO} dias sem resposta.
+        </p>
+        <form method="POST" action="/api/orcamentos-diretos/rejeitar-antigos"
+              data-confirm={`Marcar ${totalAntigos === 1 ? 'o orçamento enviado' : `os ${totalAntigos} orçamentos enviados`} com mais de ${DIAS_ANTIGO} dias como rejeitado${totalAntigos === 1 ? '' : 's'}?`}>
+          <button type="submit" class="w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-semibold bg-red-700 hover:bg-red-800 text-white">Marcar todos como rejeitados</button>
+        </form>
       </div>
+    )}
+
+    {orcamentos.length === 0 && (
+      q || statusFilter !== 'ativos' ? (
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center text-gray-500">
+          <p>Nenhum orçamento encontrado{q ? ` para "${q}"` : ''}.</p>
+        </div>
+      ) : (
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center text-gray-500">
+          <p class="mb-3">Ainda não há orçamentos.</p>
+          <a href="/orcamentos/novo" class="text-red-700 font-medium hover:underline">Criar o primeiro orçamento →</a>
+        </div>
+      )
     )}
 
     <div class="space-y-3">
@@ -314,7 +366,7 @@ const buildDuplicarUrl = (o: any) => {
         const saved = sessionStorage.getItem(KEY);
         if (saved && saved.length > 1) { location.replace(location.pathname + saved); return; }
       }
-      document.querySelectorAll('#filtros a').forEach(el => {
+      document.querySelectorAll('#filtros a, [data-filtro-link]').forEach(el => {
         el.addEventListener('click', () => {
           try { sessionStorage.setItem(KEY, new URL((el as HTMLAnchorElement).href, location.origin).search); } catch {}
         });
